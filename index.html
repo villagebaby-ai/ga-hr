@@ -40,7 +40,8 @@ table{border-collapse:collapse;width:100%}
 .login-brand .org{font-size:11px;letter-spacing:.14em;color:var(--sub);font-weight:500}
 .login-brand .nm{font-size:20px;font-weight:700;letter-spacing:-.03em;color:var(--navy);margin-top:4px}
 .login-desc{font-size:12.5px;color:var(--sub);line-height:1.7;margin-bottom:18px}
-.login-msg{margin-top:12px;font-size:12.5px;min-height:18px}
+/* liMsg() 는 textContent 로 넣으므로 <br> 이 아니라 \n + pre-line 으로 줄을 나눈다 */
+.login-msg{margin-top:12px;font-size:12.5px;min-height:18px;white-space:pre-line}
 .login-msg.err{color:var(--st-rej)}
 .login-msg.ok{color:var(--st-appr)}
 .email-row{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:#fff}
@@ -164,6 +165,10 @@ tr.sp-row td:first-child{box-shadow:inset 3px 0 0 var(--st-rej)}
 .doc-sub{text-align:center;font-size:11.5px;color:var(--sub);margin-bottom:16px;letter-spacing:.02em}
 .appr-line{width:100%;border:1px solid #C7CED6;border-collapse:collapse;margin:0 0 18px;table-layout:fixed}
 .appr-line th{background:#F2F4F7;border:1px solid #C7CED6;padding:5px 4px;font-size:11px;text-align:center;color:var(--sub);font-weight:700}
+/* 결재란 직함은 자간을 넓혀 공문서처럼 보이게 한다. 문자열에 공백을 넣으면
+   '이사'처럼 글자 수가 다른 직함에서 어색해지므로 CSS 로만 처리한다.
+   (마지막 글자 뒤 자간은 음수 마진으로 상쇄해야 가운데 정렬이 틀어지지 않는다) */
+.appr-line th .ttl{letter-spacing:.3em;margin-right:-.3em}
 .appr-line td{border:1px solid #C7CED6;padding:10px 4px 8px;text-align:center;height:74px;vertical-align:middle}
 .appr-line .an{font-size:13px;font-weight:700;display:block}
 .appr-line .ad{font-size:10.5px;color:var(--sub);display:block;margin-top:3px;font-variant-numeric:tabular-nums}
@@ -315,6 +320,13 @@ function apprOf(email){const e=String(email||'').toLowerCase();
   return approvers().find(a=>String(a.email||'').toLowerCase()===e)||null;}
 function apprName(email){const a=apprOf(email);
   return a?(a.name+' '+(a.jobTitle||'')).trim():String(email||'').split('@')[0];}
+/* 결재자 직함은 화면에 박아두지 않고 approvers 의 jobTitle 에서 꺼낸다.
+   (인사 변동으로 '센터장'이 '이사'가 되어도 화면 문구가 따라간다)
+   approvers 가 비는 경우 — 아직 로드 전이거나 구 RPC — 를 대비해 폴백을 둔다. */
+function centerTitle(){var a=(approvers()||[]).find(function(x){return x.role==='center';});return (a&&a.jobTitle)||'센터장';}
+function execTitle(){var a=(approvers()||[]).find(function(x){return x.role==='exec';});return (a&&a.jobTitle)||'대표';}
+/* 결재 단계 표기 — 신청 화면 미리보기와 문서 상세가 같은 문구를 쓴다 */
+function stepsText(n){return n===1?'1단계 ('+centerTitle()+' 전결)':'2단계 ('+centerTitle()+' → '+execTitle()+')';}
 
 const UNIT_DEDUCT={'종일':1,'오전 반차':.5,'오후 반차':.5,'오전 반반차':.25,'오후 반반차':.25};
 const STATUS={
@@ -618,17 +630,31 @@ function empName(id){
   return '—';
 }
 
+/* ===================== 역할 판정 ===================== */
+/* viewer(운영자) 계정 — 전체 조회는 되지만 결재권이 없고, GA 연차 산정 대상도 아니다.
+   ⚠️ 05_ga_viewer_role.sql 이전 데이터에서는 isLeaveSubject 가 아예 내려오지 않는다.
+      그래서 **=== false 일 때만** 제외한다. undefined·true 는 기존 동작 그대로. */
+function isSubject(){return !(ST.me&&ST.me.isLeaveSubject===false);}
+function isApprover(){return !(ST.me&&ST.me.isApprover===false);}
+function empIsSubject(e){return !(e&&e.isLeaveSubject===false);}
+
 /* ===================== 네비게이션 ===================== */
+/* subject:true = GA 연차 산정 대상자에게만 의미 있는 화면 (본인 휴가 기능) */
 const PAGES={
   home:   {t:'홈',          d:'내 결재 진행 현황과 최근 신청 내역입니다.',             render:renderHome},
-  apply:  {t:'휴가 신청',    d:'사유·인수인계·사전 협의를 확인한 뒤 결재를 상신합니다.',  render:renderApply},
-  mybox:  {t:'내 결재함',    d:'내가 상신한 결재 문서와 진행 단계입니다.',              render:renderMyBox},
-  myleave:{t:'내 연차',      d:'산정기간별 발생·사용·잔여 연차와 촉진 통보 수신 이력입니다.',render:renderMyLeave},
+  apply:  {t:'휴가 신청',    d:'사유·인수인계·사전 협의를 확인한 뒤 결재를 상신합니다.',  render:renderApply, subject:true},
+  mybox:  {t:'내 결재함',    d:'내가 상신한 결재 문서와 진행 단계입니다.',              render:renderMyBox, subject:true},
+  myleave:{t:'내 연차',      d:'산정기간별 발생·사용·잔여 연차와 촉진 통보 수신 이력입니다.',render:renderMyLeave, subject:true},
   inbox:  {t:'결재 대기함',  d:'1차·최종 결재를 기다리는 문서입니다.',                  render:renderInbox,  admin:true},
   dash:   {t:'연차 현황',    d:'전원 연차 발생·사용·잔여 현황과 조정 연차 등록입니다.',   render:renderDash,   admin:true},
   promo:  {t:'연차 촉진',    d:'근로기준법 제61조 연차사용촉진 대상과 서면통보 이력입니다.',render:renderPromo,  admin:true}
 };
-function canSee(k){const p=PAGES[k];return !p.admin||(ST.me&&ST.me.canViewAll===true);}
+function canSee(k){
+  const p=PAGES[k];if(!p)return false;
+  if(p.admin&&!(ST.me&&ST.me.canViewAll===true))return false;
+  if(p.subject&&!isSubject())return false;   /* 운영자 계정은 본인 휴가 기능 자체가 없다 */
+  return true;
+}
 function buildNav(){
   const nav=document.getElementById('navBar');
   nav.innerHTML=Object.keys(PAGES).filter(canSee).map(k=>
@@ -639,8 +665,10 @@ function go(k){
   if(!PAGES[k]||!canSee(k))k='home';
   ST.page=k;buildNav();
   const p=PAGES[k];
+  /* 운영자(viewer)는 본인 신청이 없으므로 홈 부제를 조회 관점으로 바꾼다 */
+  const desc=(k==='home'&&!isSubject())?'GA 구성원의 결재 문서와 연차 현황을 조회합니다.':p.d;
   document.getElementById('content').innerHTML=
-    `<div class="page-h"><h2>${escH(p.t)}</h2><p>${escH(p.d)}</p></div><div id="pg"><div class="card card-pad hint">불러오는 중…</div></div>`;
+    `<div class="page-h"><h2>${escH(p.t)}</h2><p>${escH(desc)}</p></div><div id="pg"><div class="card card-pad hint">불러오는 중…</div></div>`;
   window.scrollTo(0,0);
   try{p.render();}catch(e){pg('<div class="card card-pad">'+escH(e.message||'화면을 그리지 못했습니다.')+'</div>');}
 }
@@ -648,6 +676,19 @@ function pg(html){const el=document.getElementById('pg');if(el)el.innerHTML=html
 
 /* ===================== 홈 ===================== */
 function renderHome(){
+  /* 운영자(viewer) — GA 연차 산정 대상이 아니므로 본인 신청 현황을 띄우지 않는다 */
+  if(!isSubject()){
+    pg(`
+    <div class="card card-pad">
+      <div class="info">이 계정은 <b>GA 연차 산정 대상이 아닙니다.</b>
+      본인 연차는 본사 HR 시스템(<b>hr.villagebaby.kr</b>)에서 관리됩니다.
+      이 화면에서는 GA 구성원의 결재 문서와 연차 현황을 조회하실 수 있습니다.</div>
+    </div>
+    <div class="card card-pad">
+      <div class="info">월요일·금요일 또는 월말 구간이 포함된 신청은 <b>특별 결재</b>로 분류되어 ${centerTitle()}·${execTitle()} 2단계 결재를 거칩니다.</div>
+    </div>`);
+    return;
+  }
   const rs=ST.my.requests;
   const c={submitted:0,center_approved:0,approved:0,rejected:0};
   rs.forEach(r=>{if(c[r.status]!==undefined)c[r.status]++;});
@@ -680,7 +721,7 @@ function renderHome(){
     </table></div>
   </div>
   <div class="card card-pad">
-    <div class="info">월요일·금요일 또는 월말 구간이 포함된 신청은 <b>특별 결재</b>로 분류되어 센터장·대표 2단계 결재를 거칩니다.
+    <div class="info">월요일·금요일 또는 월말 구간이 포함된 신청은 <b>특별 결재</b>로 분류되어 ${centerTitle()}·${execTitle()} 2단계 결재를 거칩니다.
     신청 전 임원과 사전 협의를 마치고, 업무 인수인계 내용을 함께 기재해 주세요.</div>
   </div>`);
 }
@@ -863,12 +904,12 @@ function updateSpecial(picked,deduct){
   const sec=document.getElementById('gaSpSec');if(sec)sec.style.display=isSp?'':'none';
   const steps=stepsPreview(isSp,deduct);
   const stEl=document.getElementById('gaSteps');
-  if(stEl)stEl.textContent=picked.length?(steps===1?'1단계 (센터장 전결)':'2단계 (센터장 → 대표)'):'—';
+  if(stEl)stEl.textContent=picked.length?stepsText(steps):'—';
   const b=document.getElementById('gaSpBanner');
   if(!b)return;
   b.innerHTML=isSp?`<div class="notice" style="margin-top:10px">
     선택하신 날짜 중 <b>${spDays.length}일</b>이 마감 구간(월요일/금요일/월말 ${escH(String(cfg('SPECIAL_MONTHEND_DAYS','5')))}일)에 해당합니다.
-    특별 결재로 분류되어 센터장·대표 2단계 결재를 거칩니다.
+    특별 결재로 분류되어 ${centerTitle()}·${execTitle()} 2단계 결재를 거칩니다.
     <ul>${spDays.map(d=>'<li>'+escH(fmtD(d.date))+' ('+dowKo(d.date)+') — '+escH(specialFlags(d.date).join(', '))+'</li>').join('')}</ul>
     </div>`:'';
 }
@@ -949,8 +990,8 @@ function progressText(r){
     const last=as[as.length-1];
     return (last?apprName(last.email):'')+' 최종 승인'+(r.steps===1?' (전결)':'');
   }
-  if(r.status==='center_approved')return '1차 승인 완료 · 대표 결재 대기';
-  return r.steps===1?'센터장 결재 대기 (1단계 전결)':'센터장 결재 대기 (총 2단계)';
+  if(r.status==='center_approved')return '1차 승인 완료 · '+execTitle()+' 결재 대기';
+  return centerTitle()+(r.steps===1?' 결재 대기 (1단계 전결)':' 결재 대기 (총 2단계)');
 }
 function withdraw(id,docNo){
   modal('결재 철회','',`<p style="font-size:13.5px;line-height:1.8">문서번호 <b>${escH(docNo)}</b> 를 철회합니다.<br>철회한 문서는 되돌릴 수 없으며, 필요 시 다시 상신해야 합니다.</p>`,
@@ -1022,11 +1063,15 @@ function renderInbox(){
   const s1=all.filter(r=>r.status==='submitted');
   const s2=all.filter(r=>r.status==='center_approved');
   pg(`
-  ${inboxTable('1차 결재 대기 (센터장)',s1,'아직 1차 결재를 기다리는 문서가 없습니다.')}
-  ${inboxTable('최종 결재 대기 (대표)',s2,'최종 결재를 기다리는 문서가 없습니다.')}
-  <div class="card card-pad"><div class="info">문서를 클릭하면 결재란과 신청 내용 전문을 확인할 수 있습니다. 반려 시에는 사유 입력이 필요합니다.</div></div>`);
+  ${inboxTable('1차 결재 대기 ('+centerTitle()+')',s1,'아직 1차 결재를 기다리는 문서가 없습니다.')}
+  ${inboxTable('최종 결재 대기 ('+execTitle()+')',s2,'최종 결재를 기다리는 문서가 없습니다.')}
+  <div class="card card-pad"><div class="info">문서를 클릭하면 결재란과 신청 내용 전문을 확인할 수 있습니다.
+  ${isApprover()?'반려 시에는 사유 입력이 필요합니다.':'이 계정에는 결재 권한이 없어 <b>조회만</b> 가능합니다.'}</div></div>`);
 }
 function inboxTable(title,rows,emptyMsg){
+  /* 결재권이 없는 계정(viewer)에는 누를 수 있는 승인·반려 버튼을 아예 내보내지 않는다.
+     서버 ga_decide 도 막지만, 막힐 버튼을 보여주는 것 자체가 잘못된 안내다. */
+  const canAct=isApprover();
   return `<div class="card">
     <div class="card-h"><h3>${escH(title)}</h3><span class="sub">${rows.length}건</span></div>
     <div class="table-wrap"><table>
@@ -1040,13 +1085,15 @@ function inboxTable(title,rows,emptyMsg){
           <td class="num">${r.deduct?lvF1(r.deduct):'—'}</td>
           <td class="mono">${escH(fmtD(String(r.submittedAt).slice(0,10)))}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn btn-approve btn-sm" onclick="event.stopPropagation();decide('${r.id}','approve')">승인</button>
-            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();decide('${r.id}','reject')">반려</button>
+            ${canAct?`<button class="btn btn-approve btn-sm" onclick="event.stopPropagation();decide('${r.id}','approve')">승인</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();decide('${r.id}','reject')">반려</button>`
+            :'<span class="hint">조회 전용</span>'}
           </td>
         </tr>`).join(''):'<tr><td colspan="7"><div class="empty">'+escH(emptyMsg)+'</div></td></tr>'}</tbody>
     </table></div></div>`;
 }
 function decide(id,action){
+  if(!isApprover()){toast('결재 권한이 없는 계정입니다.','err');return;}
   const r=findReq(id);if(!r)return;
   const isRej=(action==='reject');
   modal(isRej?'결재 반려':'결재 승인','',`
@@ -1079,7 +1126,9 @@ function findReq(id){
      · steps_required=1 (센터장이 최종)        → 센터장 서명 / 대표 '전결'
      · steps_required=2, 센터장→대표 순차 승인 → 양쪽 서명
      · steps_required=2, 대표가 1단계에서 승인 → 센터장 '생략' / 대표 서명
-     · 반려                                    → 반려한 칸에 '반려', 나머지 공란 */
+     · 반려                                    → 반려한 칸에 '반려', 나머지 공란
+   (위 설명의 '센터장'·'대표'는 역할을 가리키는 말이고, 화면에 찍히는 직함은
+    approvers 의 jobTitle 에서 가져온다 — centerTitle() / execTitle()) */
 function apprCells(r){
   const as=apprOfReq(r.id);
   const a1=as.filter(a=>a.step===1)[0]||null;
@@ -1122,7 +1171,9 @@ function docSheetHtml(r){
     <h1 class="doc-title">휴 가 신 청 서</h1>
     <div class="doc-sub">${escH(coNameOfEmp(r.empId))} · GA · 문서번호 ${escH(r.docNo)}</div>
     <table class="appr-line">
-      <tr><th>신 청 자</th><th>센 터 장 (1차)</th><th>대 표 (최종)</th></tr>
+      <tr><th><span class="ttl">신청자</span></th>
+          <th><span class="ttl">${escH(centerTitle())}</span> (1차)</th>
+          <th><span class="ttl">${escH(execTitle())}</span> (최종)</th></tr>
       <tr>
         <td><span class="an">${escH(empName(r.empId))}</span>
             <span class="ad">${escH(fmtDT(r.submittedAt))}</span>
@@ -1144,7 +1195,7 @@ function docSheetHtml(r){
       ${r.isSpecial?`<tr><th>특별 결재 구분</th><td>${escH((r.specialReasons||[]).join(', '))}</td></tr>
       <tr><th>특별 결재 사유</th><td>${escH(r.specialNote)}</td></tr>`:''}
       ${att?`<tr><th>증빙 첨부</th><td>${att}</td></tr>`:''}
-      <tr><th>결재 단계</th><td>${r.steps===1?'1단계 (센터장 전결)':'2단계 (센터장 → 대표)'}</td></tr>
+      <tr><th>결재 단계</th><td>${escH(stepsText(r.steps))}</td></tr>
       <tr><th>현재 상태</th><td>${escH(stText(r.status))}</td></tr>
     </table>
     <div class="doc-foot">
@@ -1167,14 +1218,15 @@ function openDoc(id){
   const r=findReq(id);
   if(!r){toast('문서를 찾을 수 없습니다.','err');return;}
   const isAdmin=!!(ST.me&&ST.me.canViewAll===true);
+  const canAct=isApprover();   /* viewer 는 조회만 — 결재·보관 버튼을 내보내지 않는다 */
   const foot=[['닫기','btn-ghost',closeModal],['인쇄 · PDF 저장','btn-secondary',function(){window.print();}]];
   if(!isAdmin&&(r.status==='submitted'||r.status==='center_approved'))
     foot.push(['철회','btn-danger',function(){closeModal();withdraw(r.id,r.docNo);}]);
-  if(isAdmin&&(r.status==='submitted'||r.status==='center_approved')){
+  if(isAdmin&&canAct&&(r.status==='submitted'||r.status==='center_approved')){
     foot.push(['반려','btn-danger',function(){closeModal();decide(r.id,'reject');}]);
     foot.push(['승인','btn-approve',function(){closeModal();decide(r.id,'approve');}]);
   }
-  if(isAdmin&&r.status==='approved'){
+  if(isAdmin&&canAct&&r.status==='approved'){
     foot.push([r.finalDocAt?('보관 완료 ('+fmtDT(r.finalDocAt)+')'):'결재문서 보관',
       r.finalDocAt?'btn-ghost':'btn-primary',function(){saveFinalDoc(r.id);}]);
   }
@@ -1199,7 +1251,7 @@ function renderDash(){
     <div class="card-h"><h3>전원 연차 현황</h3><span class="sub">현재 산정기간 기준</span><div class="sp"></div>
       <div class="filters">
         <input class="input" id="dashQ" placeholder="이름 검색" style="min-width:130px">
-        <button class="btn btn-secondary btn-sm" onclick="openAdjust()">조정 연차 등록</button>
+        ${isApprover()?'<button class="btn btn-secondary btn-sm" onclick="openAdjust()">조정 연차 등록</button>':'<span class="hint">조회 전용</span>'}
         <button class="btn btn-ghost btn-sm" onclick="exportRoster()">CSV</button>
       </div>
     </div>
@@ -1227,7 +1279,11 @@ function adminLvData(){
   const usage=(ST.admin.requests||[]).filter(r=>r.status==='approved'&&typeOf(r).deductible)
     .map(r=>({empId:r.empId,dates:r.dates,typeName:typeOf(r).name}));
   const adjust=(ST.admin.adjustments||[]).map(a=>({empId:a.empId,days:a.days,at:a.at}));
-  return {employees:ST.admin.employees||[],usage,adjust,notices:ST.admin.notices||[]};
+  /* GA 연차 산정 대상이 아닌 운영자(viewer)는 연차 현황·촉진 모집단에서 제외한다.
+     — 본사 HR 이 연차를 관리하므로, 여기서 15일을 가진 것처럼 잡히면 안 된다.
+     ⚠️ empName() 이 쓰는 ST.admin.employees 는 건드리지 않는다 (결재 문서의 이름 표기용). */
+  return {employees:(ST.admin.employees||[]).filter(empIsSubject),
+          usage,adjust,notices:ST.admin.notices||[]};
 }
 function lvVisible(){
   const q=String(LV.q||'').trim();
@@ -1258,6 +1314,8 @@ function drawDashBody(){
     :'<tr><td colspan="12"><div class="empty">조건에 맞는 직원이 없습니다.</div></td></tr>';
 }
 function openAdjust(){
+  /* 결재권이 없으면 조정 연차를 등록할 수 없다 (서버 ga_adjust 도 ga_is_approver 로 거부) */
+  if(!isApprover()){toast('조정 연차 등록 권한이 없는 계정입니다.','err');return;}
   const opts=LV.members.map(m=>`<option value="${escH(m.id)}">${escH(m.name)} (${escH(m.cur.start)} ~ ${escH(m.cur.end)})</option>`).join('');
   modal('조정 연차 등록','',`
     <div class="form-row"><label>대상자<span class="req">*</span></label><select class="input" id="ajEmp">${opts}</select></div>
@@ -1565,7 +1623,7 @@ function verifyCode(){
       if(!me||me.needLogin){
         return sb.auth.signOut().then(function(){
           setBusy('liVerify',false);
-          liMsg('GA 휴가 시스템 사용 대상이 아닙니다. GA 총무 담당자에게 문의해 주세요.','err');
+          liMsg('GA 휴가 시스템 사용 대상이 아닙니다.\n관리자 정혜민님에게 문의해 주세요.','err');
         });
       }
       return enter();
@@ -1584,8 +1642,7 @@ function enter(){
     const ls=document.getElementById('loginScreen');if(ls)ls.remove();
     document.getElementById('layout').style.display='';
     document.getElementById('meNm').textContent=ST.me.name||'사용자';
-    document.getElementById('meRl').textContent=
-      ST.me.role==='exec'?'대표':ST.me.role==='center'?'센터장':(ST.me.jobTitle||'GA');
+    document.getElementById('meRl').textContent=ST.me.jobTitle||'GA';
     if(ST.me.canViewAll===true)return loadAdmin().then(()=>{buildNav();go('home');});
     buildNav();go('home');
   });
@@ -1595,7 +1652,7 @@ function boot(){
     if(res.data&&res.data.session){
       rpc('ga_me').then(function(me){
         if(!me||me.needLogin){
-          return sb.auth.signOut().then(function(){renderLogin('GA 휴가 시스템 사용 대상이 아닙니다. GA 총무 담당자에게 문의해 주세요.');});
+          return sb.auth.signOut().then(function(){renderLogin('GA 휴가 시스템 사용 대상이 아닙니다.\n관리자 정혜민님에게 문의해 주세요.');});
         }
         return enter();
       }).catch(function(){renderLogin();});
