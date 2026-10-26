@@ -1623,7 +1623,7 @@ function verifyCode(){
       if(!me||me.needLogin){
         return sb.auth.signOut().then(function(){
           setBusy('liVerify',false);
-          liMsg('GA 휴가 시스템 사용 대상이 아닙니다.\n관리자 정혜민님에게 문의해 주세요.','err');
+          liMsg('GA 휴가 시스템 사용 대상이 아닙니다.\n관리자에게 문의해 주세요.','err');
         });
       }
       return enter();
@@ -1652,7 +1652,7 @@ function boot(){
     if(res.data&&res.data.session){
       rpc('ga_me').then(function(me){
         if(!me||me.needLogin){
-          return sb.auth.signOut().then(function(){renderLogin('GA 휴가 시스템 사용 대상이 아닙니다.\n관리자 정혜민님에게 문의해 주세요.');});
+          return sb.auth.signOut().then(function(){renderLogin('GA 휴가 시스템 사용 대상이 아닙니다.\n관리자에게 문의해 주세요.');});
         }
         return enter();
       }).catch(function(){renderLogin();});
