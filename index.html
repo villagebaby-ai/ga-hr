@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>GA 휴가 결재 시스템</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===================== 디자인 토큰 (포멀 · 공문서 톤) ===================== */
+:root{
+  --navy:#1F3A5F; --navy-d:#16293F; --navy-l:#2E527E;
+  --bg:#F5F6F8; --card:#FFFFFF; --line:#DDE1E6;
+  --ink:#1A1D21; --sub:#6B7785; --faint:#9AA0A6;
+  --st-sub:#6B7785;    /* 상신 */
+  --st-cent:#2D6BA8;   /* 1차 승인 */
+  --st-appr:#1E7B4D;   /* 최종 승인 */
+  --st-rej:#B4433C;    /* 반려 */
+  --st-wd:#9AA0A6;     /* 철회 */
+  --r:6px; --r-lg:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
+  background:var(--bg); color:var(--ink); font-size:14px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-weight:700;letter-spacing:-.02em;line-height:1.35}
+a{color:var(--navy-l);text-decoration:none}
+button{font-family:inherit}
+table{border-collapse:collapse;width:100%}
+
+/* ===================== 로그인 ===================== */
+.login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:var(--bg)}
+.login-card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:32px 28px}
+.login-brand{border-bottom:2px solid var(--navy);padding-bottom:14px;margin-bottom:20px}
+.login-brand .org{font-size:11px;letter-spacing:.14em;color:var(--sub);font-weight:500}
+.login-brand .nm{font-size:20px;font-weight:700;letter-spacing:-.03em;color:var(--navy);margin-top:4px}
+.login-desc{font-size:12.5px;color:var(--sub);line-height:1.7;margin-bottom:18px}
+.login-msg{margin-top:12px;font-size:12.5px;min-height:18px}
+.login-msg.err{color:var(--st-rej)}
+.login-msg.ok{color:var(--st-appr)}
+.email-row{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:#fff}
+.email-row input{border:0;flex:1;min-width:0;padding:10px 12px;font-size:14px;outline:none;font-family:inherit}
+.email-suffix{display:flex;align-items:center;padding:0 10px;background:#F0F2F5;color:var(--sub);font-size:12.5px;border-left:1px solid var(--line);white-space:nowrap}
+
+/* ===================== 폼 ===================== */
+.form-row{margin-bottom:14px}
+.form-row>label{display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:6px;letter-spacing:-.01em}
+.form-row .req{color:var(--st-rej);margin-left:3px}
+.form-row .hint{display:block;font-weight:400;color:var(--sub);font-size:11.5px;margin-top:3px;letter-spacing:0}
+.input,select.input,textarea.input{
+  width:100%;border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;
+  font-size:14px;font-family:inherit;color:var(--ink);background:#fff;outline:none;
+}
+.input:focus{border-color:var(--navy-l);box-shadow:0 0 0 2px rgba(46,82,126,.12)}
+textarea.input{min-height:84px;resize:vertical;line-height:1.7}
+select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%236B7785' stroke-width='1.6'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+
+/* ===================== 버튼 ===================== */
+.btn{border:1px solid transparent;border-radius:var(--r);padding:9px 16px;font-size:13.5px;font-weight:700;cursor:pointer;letter-spacing:-.01em;background:#fff;color:var(--ink);transition:background .12s,border-color .12s}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn-primary:not(:disabled):hover{background:var(--navy-d)}
+.btn-secondary{background:#fff;color:var(--navy);border-color:var(--navy)}
+.btn-secondary:not(:disabled):hover{background:#EEF1F5}
+.btn-ghost{background:#fff;color:var(--sub);border-color:var(--line)}
+.btn-ghost:not(:disabled):hover{background:#F2F4F6}
+.btn-danger{background:#fff;color:var(--st-rej);border-color:#E3BEBB}
+.btn-danger:not(:disabled):hover{background:#FBF2F1}
+.btn-approve{background:var(--st-appr);color:#fff;border-color:var(--st-appr)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-block{display:block;width:100%}
+
+/* ===================== 레이아웃 ===================== */
+.topbar{background:var(--navy);color:#fff}
+.topbar-in{max-width:1080px;margin:0 auto;padding:13px 16px;display:flex;align-items:center;gap:12px}
+.topbar .org{font-size:10.5px;letter-spacing:.16em;opacity:.72;font-weight:500}
+.topbar .nm{font-size:16px;font-weight:700;letter-spacing:-.03em;line-height:1.25}
+.topbar .sp{flex:1}
+.topbar .who{font-size:12.5px;opacity:.9;text-align:right;line-height:1.35}
+.topbar .who b{display:block;font-size:13px}
+.topbar .out{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:var(--r);padding:5px 10px;font-size:12px;cursor:pointer}
+.topbar .out:hover{background:rgba(255,255,255,.12)}
+.navbar{background:#fff;border-bottom:1px solid var(--line)}
+.navbar-in{max-width:1080px;margin:0 auto;padding:0 8px;display:flex;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.navbar-in::-webkit-scrollbar{height:0}
+.nav-t{background:none;border:0;border-bottom:2px solid transparent;padding:12px 12px 10px;font-size:13.5px;font-weight:500;color:var(--sub);cursor:pointer;white-space:nowrap}
+.nav-t:hover{color:var(--ink)}
+.nav-t.on{color:var(--navy);font-weight:700;border-bottom-color:var(--navy)}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 56px}
+.page-h{margin-bottom:16px}
+.page-h h2{font-size:19px;color:var(--ink)}
+.page-h p{font-size:12.5px;color:var(--sub);margin-top:3px}
+
+/* ===================== 카드 · 표 ===================== */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);margin-bottom:14px}
+.card-pad{padding:18px}
+.card-h{padding:13px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card-h h3{font-size:14.5px}
+.card-h .sp{flex:1}
+.card-h .sub{font-size:12px;color:var(--sub);font-weight:400}
+.table-wrap{overflow-x:auto}
+table th{background:#F7F8FA;border-bottom:1px solid var(--line);padding:9px 12px;font-size:12px;font-weight:700;color:var(--sub);text-align:left;white-space:nowrap;letter-spacing:-.01em}
+table td{border-bottom:1px solid #EEF0F3;padding:10px 12px;font-size:13px;vertical-align:middle}
+table tbody tr:last-child td{border-bottom:0}
+table tbody tr.clickable{cursor:pointer}
+table tbody tr.clickable:hover{background:#F8F9FB}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.t-name{font-weight:700}
+.mono{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.empty{padding:28px 12px;text-align:center;color:var(--faint);font-size:13px}
+.hint{font-size:11.5px;color:var(--sub);line-height:1.65}
+
+/* 특별결재 행 표식 */
+tr.sp-row td:first-child{box-shadow:inset 3px 0 0 var(--st-rej)}
+
+/* ===================== 배지 ===================== */
+.badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11.5px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:-.01em}
+.bg-submitted{background:var(--st-sub)}
+.bg-center_approved{background:var(--st-cent)}
+.bg-approved{background:var(--st-appr)}
+.bg-rejected{background:var(--st-rej)}
+.bg-withdrawn{background:var(--st-wd)}
+.badge-sp{display:inline-block;padding:1px 6px;border:1px solid var(--st-rej);color:var(--st-rej);border-radius:3px;font-size:11px;font-weight:700;margin-left:5px;white-space:nowrap}
+.badge-out{display:inline-block;padding:1px 7px;border:1px solid var(--line);color:var(--sub);border-radius:3px;font-size:11.5px;font-weight:500}
+
+/* ===================== 홈 통계 ===================== */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px}
+.stat .k{font-size:11.5px;color:var(--sub);font-weight:500}
+.stat .v{font-size:24px;font-weight:700;margin-top:2px;line-height:1.2;font-variant-numeric:tabular-nums}
+.stat.s1 .v{color:var(--st-sub)} .stat.s2 .v{color:var(--st-cent)}
+.stat.s3 .v{color:var(--st-appr)} .stat.s4 .v{color:var(--st-rej)}
+.bal-box{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.bal-box .big{font-size:30px;font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+
+/* ===================== 신청 폼 ===================== */
+.sec{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
+.sec:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.sec-t{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sec-t .no{display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:var(--navy);color:#fff;border-radius:3px;font-size:11px}
+.date-block{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.date-block .dt{flex:1 1 150px;min-width:130px}
+.date-block .unit{flex:0 1 150px;min-width:120px}
+.date-block .dow{font-size:12px;color:var(--sub);min-width:26px}
+.date-block .rm{border:1px solid var(--line);background:#fff;color:var(--sub);border-radius:var(--r);width:30px;height:34px;cursor:pointer;font-size:14px;line-height:1}
+.chk-row{display:flex;gap:9px;align-items:flex-start;background:#F7F8FA;border:1px solid var(--line);border-radius:var(--r);padding:11px 13px}
+.chk-row input[type=checkbox]{width:16px;height:16px;margin-top:2px;accent-color:var(--navy);flex:0 0 auto}
+.chk-row label{font-size:13px;font-weight:500;cursor:pointer;line-height:1.6}
+.notice{border:1px solid #E3BEBB;border-left:3px solid var(--st-rej);background:#FBF4F3;border-radius:var(--r);padding:11px 13px;font-size:12.5px;color:#8E342E;line-height:1.7;margin-bottom:12px}
+.notice b{color:var(--st-rej)}
+.notice ul{margin:6px 0 0 16px}
+.info{border:1px solid #CCD7E4;border-left:3px solid var(--navy-l);background:#F4F7FA;border-radius:var(--r);padding:11px 13px;font-size:12.5px;color:#2B4766;line-height:1.7}
+.sum-bar{display:flex;gap:16px;flex-wrap:wrap;background:#F7F8FA;border:1px solid var(--line);border-radius:var(--r);padding:10px 13px;font-size:13px}
+.sum-bar b{font-variant-numeric:tabular-nums;color:var(--navy)}
+
+/* ===================== 결재란 (문서) ===================== */
+.doc-sheet{background:#fff;border:1px solid #C7CED6;padding:26px 26px 22px}
+.doc-title{text-align:center;font-size:19px;font-weight:700;letter-spacing:.12em;margin:0 0 4px;color:var(--ink)}
+.doc-sub{text-align:center;font-size:11.5px;color:var(--sub);margin-bottom:16px;letter-spacing:.02em}
+.appr-line{width:100%;border:1px solid #C7CED6;border-collapse:collapse;margin:0 0 18px;table-layout:fixed}
+.appr-line th{background:#F2F4F7;border:1px solid #C7CED6;padding:5px 4px;font-size:11px;text-align:center;color:var(--sub);font-weight:700}
+.appr-line td{border:1px solid #C7CED6;padding:10px 4px 8px;text-align:center;height:74px;vertical-align:middle}
+.appr-line .an{font-size:13px;font-weight:700;display:block}
+.appr-line .ad{font-size:10.5px;color:var(--sub);display:block;margin-top:3px;font-variant-numeric:tabular-nums}
+.appr-line .ax{display:inline-block;margin-top:4px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;color:#fff}
+.appr-line .ax.ok{background:var(--st-appr)} .appr-line .ax.no{background:var(--st-rej)}
+.appr-line .ax.wait{background:#fff;color:var(--sub);border:1px solid var(--line)}
+.appr-line .ax.na{background:#fff;color:var(--faint);border:1px solid var(--line)}
+.doc-tbl{width:100%;border-collapse:collapse;margin-bottom:12px}
+.doc-tbl th{width:112px;background:#F7F8FA;border:1px solid #D7DCE2;padding:8px 10px;font-size:12px;color:var(--sub);text-align:left;font-weight:700;vertical-align:top;white-space:nowrap}
+.doc-tbl td{border:1px solid #D7DCE2;padding:8px 10px;font-size:12.5px;color:var(--ink);white-space:pre-wrap;word-break:break-word;line-height:1.7}
+.doc-foot{text-align:center;margin-top:18px;border-top:1px solid #D7DCE2;padding-top:14px}
+.doc-foot .d{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
+.doc-foot .co{font-size:15px;font-weight:700;letter-spacing:.08em;margin-top:5px}
+.appr-log{border:1px solid var(--line);border-radius:var(--r);margin-top:12px}
+.appr-log .it{padding:9px 12px;border-bottom:1px solid #EEF0F3;font-size:12.5px}
+.appr-log .it:last-child{border-bottom:0}
+.appr-log .mt{font-size:11.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+
+/* ===================== 모달 · 토스트 ===================== */
+.overlay{position:fixed;inset:0;background:rgba(20,28,38,.46);display:flex;align-items:flex-start;justify-content:center;padding:28px 12px;z-index:900;overflow-y:auto}
+.modal{background:#fff;border-radius:var(--r-lg);width:100%;max-width:520px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal.wide{max-width:760px}
+.modal-head{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.modal-head h3{font-size:15px;flex:1}
+.modal-head .x{background:none;border:0;font-size:20px;line-height:1;color:var(--sub);cursor:pointer;padding:0 2px}
+.modal-body{padding:18px;max-height:min(70vh,720px);overflow-y:auto}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--line);background:#FAFBFC;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--navy-d);color:#fff;padding:11px 18px;border-radius:var(--r);font-size:13px;z-index:1000;max-width:90vw;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.toast.err{background:var(--st-rej)}
+.toast.ok{background:var(--st-appr)}
+
+/* ===================== 촉진 ===================== */
+.chip{display:inline-flex;align-items:center;gap:5px;background:#EEF1F5;border:1px solid var(--line);border-radius:3px;padding:3px 8px;font-size:12px;margin:0 5px 5px 0;font-variant-numeric:tabular-nums}
+.chip button{background:none;border:0;color:var(--sub);cursor:pointer;font-size:12px;line-height:1}
+.addrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--sub)}
+.addrow input[type=date]{border:1px solid var(--line);border-radius:var(--r);padding:6px 9px;font-family:inherit;font-size:13px}
+.lvdedit{border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:14px;background:#FAFBFC}
+.lvdedit .tt{font-size:12.5px;font-weight:700;margin-bottom:8px}
+.lvdedit .warn{color:var(--st-rej);font-weight:700}
+.lvrecv{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:var(--r);padding:9px 12px;font-size:12.5px;margin-bottom:12px;background:#FAFBFC}
+.lvrecv .rl{color:var(--sub)}
+.lvrecv .em{color:var(--sub)}
+.lvrecv .via{color:var(--faint);font-size:11.5px;margin-left:auto}
+
+/* ===================== 필터 ===================== */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters .input{width:auto;min-width:130px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.seg button{background:#fff;border:0;border-right:1px solid var(--line);padding:7px 12px;font-size:12.5px;color:var(--sub);cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--navy);color:#fff;font-weight:700}
+
+/* ===================== 반응형 ===================== */
+@media (max-width:640px){
+  .wrap{padding:16px 12px 48px}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .card-pad{padding:14px}
+  .doc-sheet{padding:18px 14px 16px}
+  .doc-tbl th{width:84px;font-size:11.5px;padding:7px 8px}
+  .doc-tbl td{font-size:12px;padding:7px 8px}
+  .appr-line td{height:64px}
+  .topbar-in{padding:11px 12px}
+  .topbar .nm{font-size:14.5px}
+  .modal-body{padding:14px}
+}
+
+/* ===================== 인쇄 (결재문서만) ===================== */
+@media print{
+  @page{margin:14mm}
+  body{background:#fff}
+  body *{visibility:hidden!important}
+  #docSheet,#docSheet *{visibility:visible!important}
+  .overlay{position:absolute!important;inset:auto!important;background:none!important;padding:0!important;display:block!important;overflow:visible!important}
+  .modal{box-shadow:none!important;max-width:none!important;border-radius:0!important}
+  .modal-head,.modal-foot,.no-print{display:none!important}
+  .modal-body{max-height:none!important;overflow:visible!important;padding:0!important}
+  #docSheet{position:absolute;left:0;top:0;width:100%;border:0!important;padding:0!important}
+}
+</style>
+</head>
+<body>
+
+<div class="layout" id="layout" style="display:none">
+  <header class="topbar">
+    <div class="topbar-in">
+      <div>
+        <div class="org">VILLAGEBABY · GA</div>
+        <div class="nm">GA 휴가 결재 시스템</div>
+      </div>
+      <div class="sp"></div>
+      <div class="who"><b id="meNm">—</b><span id="meRl"></span></div>
+      <button class="out" onclick="logout()">로그아웃</button>
+    </div>
+  </header>
+  <nav class="navbar"><div class="navbar-in" id="navBar"></div></nav>
+  <main class="wrap" id="content"></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* =====================================================================
+   GA 휴가 결재 시스템 — 단일 HTML 프런트엔드
+   · 백엔드 계약: supabase/01_ga_schema.sql · 02_ga_rpc.sql
+   · 연차 계산(근로기준법 제60조·제61조)은 빌베 HR 로직을 그대로 사용한다.
+   ===================================================================== */
+
+/* ===================== Supabase ===================== */
+const SUPA_URL='https://gziprrcxfcfgonyxuxui.supabase.co';
+const SUPA_KEY='sb_publishable_r6KPdTci2rtyCCAEtjuspQ_7Nhs0pRj';
+const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
+
+/* 법인 — 한 시스템에 두 법인이 공존한다(VB=주식회사 빌리지베이비 /
+   WA=주식회사 더블유에셋). 근로기준법 제61조 연차사용촉진 서면통보와 결재문서에
+   찍히는 법정 명의는 **대상자(신청자)의 소속 법인**을 따른다.
+   ⚠️ 승인자 화면에서도 로그인한 승인자 본인의 법인을 쓰면 안 된다.
+   출처: ga_me().company(본인) / ga_admin_data().companies + employees[].companyCode(전원) */
+/* TODO: ga_companies 가 비어 있거나 company_code 가 매칭되지 않을 때만 쓰이는 폴백.
+   양사 사업자등록번호·대표자명을 ga_companies 에 채운 뒤 이 폴백은 제거 검토 */
+const CO_FALLBACK='주식회사 빌리지베이비';
+function myCo(){const c=(ST.me&&ST.me.company)||null;return (c&&c.name)?c:null;}
+function coByCode(code){
+  const k=String(code||'');if(!k)return null;
+  const hit=((ST.admin&&ST.admin.companies)||[]).find(c=>String(c.code)===k);
+  if(hit)return hit;
+  const mine=myCo();
+  return (mine&&String(mine.code||'')===k)?mine:null;
+}
+/* 대상자(empId)의 법인명 — 결재문서·촉진 서면 명의는 전부 이 함수를 거친다 */
+function coNameOfEmp(empId){
+  const e=((ST.admin&&ST.admin.employees)||[]).find(x=>String(x.id)===String(empId));
+  if(e){const c=coByCode(e.companyCode);return e.companyName||(c&&c.name)||CO_FALLBACK;}
+  if(ST.me&&String(ST.me.id)===String(empId)){const mine=myCo();if(mine)return mine.name;}
+  return CO_FALLBACK;
+}
+/* lvBuild 멤버(법인 정보를 들고 있음) 기준 — 촉진 서면용 */
+function coNameOfMember(m){
+  if(!m)return CO_FALLBACK;
+  const c=coByCode(m.companyCode);
+  return m.companyName||(c&&c.name)||coNameOfEmp(m.id);
+}
+/* 메일 제목 등 짧은 표기용 ('주식회사 ' 접두 제거) */
+function coShort(n){return String(n||'').replace(/^\s*주식회사\s*/,'');}
+
+/* 결재선(센터장·대표) — ga_me().approvers 가 role 순(center→exec)으로 내려준다.
+   RLS 로 가려진 ga_employees 를 대신하며, 프런트에 명단을 두지 않으므로
+   인사 변동이 서버 한 곳만 바뀌어도 자동 반영된다. */
+function approvers(){return (ST.me&&ST.me.approvers)||[];}
+function apprOf(email){const e=String(email||'').toLowerCase();
+  return approvers().find(a=>String(a.email||'').toLowerCase()===e)||null;}
+function apprName(email){const a=apprOf(email);
+  return a?(a.name+' '+(a.jobTitle||'')).trim():String(email||'').split('@')[0];}
+
+const UNIT_DEDUCT={'종일':1,'오전 반차':.5,'오후 반차':.5,'오전 반반차':.25,'오후 반반차':.25};
+const STATUS={
+  submitted:['상신','bg-submitted'],
+  center_approved:['1차 승인','bg-center_approved'],
+  approved:['최종 승인','bg-approved'],
+  rejected:['반려','bg-rejected'],
+  withdrawn:['철회','bg-withdrawn']
+};
+function stBadge(s){const x=STATUS[s]||[s,'bg-withdrawn'];return '<span class="badge '+x[1]+'">'+x[0]+'</span>';}
+function stText(s){return (STATUS[s]||[s])[0];}
+
+/* ===================== 유틸 (HR 동일) ===================== */
+function escH(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function r1(n){return (Math.round(n*100)/100).toString();}
+function fmtD(s){if(!s)return'';const [y,m,d]=String(s).slice(0,10).split('-');return `${y.slice(2)}.${m}.${d}`;}
+function dowKo(s){const [y,m,d]=String(s).slice(0,10).split('-').map(Number);return ['일','월','화','수','목','금','토'][new Date(y,m-1,d).getDay()];}
+function fmtDT(s){if(!s)return'';const d=new Date(s);if(isNaN(d))return String(s).slice(0,16).replace('T',' ');
+  return d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0')
+    +' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+/* === fmtPeriod — HR 원본 그대로 === */
+function fmtPeriod(dates,unit){
+  if(!dates||!dates.length)return'';
+  const f=dates[0];let s=`${fmtD(f.date)} (${dowKo(f.date)}) ${f.unit}`;
+  if(dates.length>1)s+=` 외 ${dates.length-1}일`;
+  return s;
+}
+
+/* ===================== 근로기준법 연차 계산 (HR 원본 그대로) =====================
+   ⚠️ 아래 블록은 빌리지베이비 HR(hr_live.html) 에서 복사한 것이다.
+      계산 결과가 HR과 달라지면 안 되므로 임의로 수정하지 말 것. */
+function calcBaseFE(join){if(!join)return 0;const p=String(join).slice(0,10).split('-');if(p.length<3)return 0;const j=new Date(+p[0],+p[1]-1,+p[2]),t=new Date();const y=ydFE(j,t);if(y<1)return Math.max(0,Math.min(11,mdFE(j,t)));return Math.min(25,15+Math.floor((y-1)/2));}
+function ydFE(a,b){let y=b.getFullYear()-a.getFullYear();if(b.getMonth()<a.getMonth()||(b.getMonth()===a.getMonth()&&b.getDate()<a.getDate()))y--;return y;}
+function mdFE(a,b){let m=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());if(b.getDate()<a.getDate())m--;return Math.max(0,m);}
+
+/* 부여기간(연차 회기): 시작=올해 입사기념일(미도래면 작년), 종료=시작+1년-1일. SQL _period 와 동일.
+   단, 입사 전(미래 입사일)이면 첫 회기 = 입사일 ~ +1년-1일 */
+function grantPeriod(join){
+  const s=String(join||'').slice(0,10).split('-');
+  if(s.length<3||!s[0])return '';
+  const jy=+s[0],jm=+s[1],jd=+s[2],t=new Date(),ty=t.getFullYear();
+  const today0=new Date(ty,t.getMonth(),t.getDate());
+  const joinD=new Date(jy,jm-1,jd);                            // 실제 입사일
+  let anniv=new Date(ty,jm-1,jd);                              // 올해 입사 월·일
+  if(anniv>today0)anniv=new Date(ty-1,jm-1,jd);               // 아직 안 지났으면 작년 회기
+  if(anniv<joinD)anniv=joinD;                                 // 입사일 이전 회기는 없음(미래 입사자 보정)
+  const end=new Date(anniv.getFullYear()+1,anniv.getMonth(),anniv.getDate());
+  end.setDate(end.getDate()-1);                               // 종료 = 시작 +1년 -1일
+  const f=d=>String(d.getFullYear()).slice(2)+'.'+(d.getMonth()+1)+'.'+d.getDate();
+  return f(anniv)+' ~ '+f(end);
+}
+
+function lvD(s){const p=String(s).slice(0,10).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function lvS(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function lvAddD(d,n){const x=new Date(d.getTime());x.setDate(x.getDate()+n);return x;}
+function lvAddM(d,n){const x=new Date(d.getTime());const day=x.getDate();x.setDate(1);x.setMonth(x.getMonth()+n);const last=new Date(x.getFullYear(),x.getMonth()+1,0).getDate();x.setDate(Math.min(day,last));return x;}
+function lvAddY(d,n){return lvAddM(d,n*12);}
+function lvDiff(a,b){return Math.round((b-a)/86400000);} /* b-a 일수 */
+function lvMonths(a,b){let m=(b.getFullYear()-a.getFullYear())*12+(b.getMonth()-a.getMonth());if(b.getDate()<a.getDate())m--;return Math.max(0,m);}
+/* 표시 단위: 연차 1일·반차 0.5일 — 0.25 단위 그대로, 반올림 없음 */
+function lvF1(n){const v=Math.round(n*4)/4;return String(v).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');}
+
+/* ---- 제60조: 입사일 기준 연차연도 생성 ---- */
+function lvPeriods(joinS,todayD,leaveS){
+  const join=lvD(joinS);const endRef=leaveS?lvD(leaveS):todayD;const out=[];
+  for(let n=1;n<=60;n++){
+    const start=lvAddY(join,n-1);if(start>endRef)break;
+    const nextStart=lvAddY(join,n),end=lvAddD(nextStart,-1);
+    let acc,tag='';
+    if(n===1){
+      const upto=(todayD<end?todayD:end);
+      acc=Math.min(lvMonths(join,lvAddD(upto,1)),11);tag='1년 미만';
+    }else{
+      const k=n-1,g=Math.floor((k-1)/2);
+      acc=Math.min(15+g,25);
+      if(g>0&&g>Math.floor((k-2)/2))tag='가산 +'+g;
+    }
+    out.push({n,start:lvS(start),end:lvS(end),expire:lvS(nextStart),acc,tag,u1:n===1,
+      cur:(todayD>=start&&todayD<=end&&(!leaveS||lvD(leaveS)>=todayD))});
+    if(nextStart>endRef)break;
+  }
+  return out;
+}
+
+/* ---- 사용 기록 → 직원별 정렬 목록 (HR 원본) ---- */
+function lvUsageMap(usage){
+  const m={};
+  (usage||[]).forEach(r=>{(r.dates||[]).forEach(d=>{
+    if(!d||!d.date)return;
+    (m[r.empId]=m[r.empId]||[]).push({date:String(d.date).slice(0,10),unit:d.unit||'종일',type:r.typeName||''});
+  });});
+  Object.keys(m).forEach(k=>m[k].sort((a,b)=>a.date<b.date?-1:1));
+  return m;
+}
+
+/* ---- 제61조 촉진 판정 (HR 원본) ---- */
+function lvSentList(m,stage,part){
+  return (LV.data.notices||[]).filter(n=>String(n.empId)===String(m.id)&&n.expire===m.cur.expire
+    &&String(n.stage)===String(stage)&&String(n.u1Part||'')===String(part||''));
+}
+function lvPromoOf(m,todayD){
+  if(m.isLeft||m.isRest||!m.cur||!m.cur.cur)return null; /* 휴직자는 촉진 대상 제외 */
+  const remain=m.cur.acc-m.cur.use;
+  if(remain<=0.001)return null;
+  const expire=lvD(m.cur.expire);
+  if(m.cur.u1){
+    const join=lvD(m.joinDate),A1=lvAddM(join,9),B1=lvAddM(join,11);
+    if(todayD<A1)return null;
+    if(todayD<B1){
+      const s1=lvSentList(m,'1','A').length>0;
+      return {u1:true,part:'A',stage:s1?'2':'1',
+        badge:(s1?'2차':'1차')+' 촉진 · 1년 미만 (선발생분)',
+        action:s1?'근로자 미회보 시 — 최초 1년 종료 1개월 전('+lvS(B1)+')까지 회사가 사용시기 지정·서면 통보'
+                 :'먼저 발생한 연차분 — 1년 종료 3개월 전 기준 10일 이내 잔여일수 통지·사용계획서 촉구 (기한 '+lvS(lvAddD(A1,10))+')'};
+    }
+    const s1b=lvSentList(m,'1','B').length>0;
+    return {u1:true,part:'B',stage:s1b?'2':'1',
+      badge:(s1b?'2차':'1차')+' 촉진 · 1년 미만 (후발생분)',
+      action:s1b?'근로자 미회보 시 — 1년 종료 10일 전('+lvS(lvAddD(expire,-10))+')까지 회사가 사용시기 지정·통보'
+               :'나중 발생한 연차분 — 1년 종료 1개월 전 기준 5일 이내 서면 촉구 (기한 '+lvS(lvAddD(B1,5))+')'};
+  }
+  const d=lvDiff(todayD,expire);
+  if(d<=0||d>183)return null;
+  const s1=lvSentList(m,'1','').length>0;
+  if(d<=61)return {stage:s1?'2':'1',part:'',badge:s1?'2차 촉진':'1차 촉진 (지연)',
+    action:s1?'근로자 미지정 — 사용자가 사용시기 지정 후 서면 통보 필요 (소멸 2개월 전 기한 경과 주의)'
+             :'1차 촉구가 아직 발송되지 않았습니다. 지금 바로 서면 촉구가 필요합니다.'};
+  return {stage:'1',part:'',badge:'1차 촉진',
+    action:'소멸 6개월 전 — 미사용 일수 통보 및 사용시기 지정 서면 촉구 필요'};
+}
+
+/* 조정 반영: 잔여/과사용 = 발생 + 조정 − 사용, 사용률 = 사용 ÷ (발생+조정).
+   연차사용촉진 판정(제61조)은 법정(발생−사용) 기준 유지 */
+function lvAdjOf(p){return Number(p&&p.adj)||0;}
+function lvRemainAdj(p){return p.acc+lvAdjOf(p)-p.use;}
+function lvRateAdj(p){const b=p.acc+lvAdjOf(p);return b>0?p.use/b*100:0;}
+function lvAdjF(n){return n>0.001?'+'+lvF1(n):(n<-0.001?'−'+lvF1(-n):'—');}
+
+/* ---- 멤버 모델 구성 (HR 원본 구조, GA 데이터 어댑터) ---- */
+let LV={data:null,members:[],sel:null,q:'',promoOnly:false};
+function lvBuild(data){
+  const todayD=lvD(today());
+  const um=lvUsageMap(data.usage);
+  const adjM={},adjL={};(data.adjust||[]).forEach(a=>{adjM[a.empId]=(adjM[a.empId]||0)+Number(a.days||0);(adjL[a.empId]=adjL[a.empId]||[]).push(a);});
+  LV.data=data;
+  LV.members=(data.employees||[]).filter(e=>e.joinDate).map(e=>{
+    const isLeft=(e.status==='퇴사'||e.status==='퇴직'||e.active===false);
+    const isRest=(e.status==='휴직');
+    const periods=lvPeriods(e.joinDate,todayD,isLeft?(e.leaveDate||''):'');
+    const ents=um[e.id]||[];
+    /* 조정 일수: 부여한 날짜가 속한 연차연도에 배정 */
+    periods.forEach(p=>{p.adj=0;});
+    (adjL[e.id]||[]).forEach(a=>{const d=String(a.at||'').slice(0,10);
+      const p=periods.find(x=>d>=x.start&&d<=x.end)||(periods.length?(d<periods[0].start?periods[0]:periods[periods.length-1]):null);
+      if(p)p.adj+=Number(a.days||0);});
+    periods.forEach(p=>{p.use=ents.filter(x=>x.date>=p.start&&x.date<=p.end).reduce((s,x)=>s+(UNIT_DEDUCT[x.unit]!==undefined?UNIT_DEDUCT[x.unit]:1),0);});
+    const cur=periods.find(p=>p.cur)||periods[periods.length-1]||null;
+    const refEnd=isLeft&&e.leaveDate?lvD(e.leaveDate):todayD;
+    const ty=Math.floor(lvMonths(lvD(e.joinDate),refEnd)/12),tm=lvMonths(lvD(e.joinDate),refEnd)%12;
+    return {id:e.id,name:e.name,email:e.email,dept:e.dept||'',job:e.jobTitle||'',
+      companyCode:e.companyCode||'',companyName:e.companyName||'',
+      joinDate:e.joinDate,leaveDate:e.leaveDate||'',isLeft,isRest,periods,cur,ents,
+      adj:adjM[e.id]||0,tenure:(ty?ty+'년 ':'')+tm+'개월'};
+  }).filter(m=>m.cur);
+  LV.members.forEach(m=>{
+    m.promo=lvPromoOf(m,todayD);
+    const remain=lvRemainAdj(m.cur);
+    if(m.isLeft){m.flag='left';m.stTxt='퇴사';}
+    else if(m.isRest){m.flag='rest';m.stTxt='휴직';}
+    else if(m.promo&&m.promo.stage==='2'){m.flag='second';m.stTxt='촉진 2차';}
+    else if(m.promo){m.flag='first';m.stTxt='촉진 1차';}
+    else if(remain<-0.001){m.flag='over';m.stTxt='과사용';}
+    else if(m.cur.u1){m.flag='prog';m.stTxt='진행중';}
+    else{m.flag='ok';m.stTxt='정상';}
+  });
+  if(LV.sel&&!LV.members.some(x=>String(x.id)===String(LV.sel)))LV.sel=null;
+}
+function lvLast(m){const l=lvSentList(m,m.promo.stage,m.promo.part);return l.length?l[l.length-1]:null;}
+function lvAutoDates(remain){
+  const days=[];let d=lvAddD(lvD(today()),14);while(d.getDay()!==1)d=lvAddD(d,1);
+  for(let i=0;i<Math.max(1,Math.floor(remain));i++){days.push(lvS(d));d=lvAddD(d,7);}
+  return days;
+}
+
+/* ===================== 상태 ===================== */
+const ST={
+  me:null, cfg:{}, types:[], typeById:{}, typeByCode:{},
+  my:{requests:[],adjustments:[],notices:[],approvals:[]},
+  admin:null, page:'home'
+};
+function cfg(k,d){const v=ST.cfg[k];return (v===undefined||v===null||v==='')?d:v;}
+function typeOf(r){return ST.typeById[r.typeId]||{name:'-',deductible:false,units:'종일',needsProof:false};}
+
+/* ---- 행 정규화 ---- */
+function normReq(r){return{
+  id:r.id, docNo:r.doc_no||'', empId:r.emp_id, typeId:r.type_id,
+  startDate:String(r.start_date||'').slice(0,10), endDate:String(r.end_date||'').slice(0,10),
+  dates:r.dates||[], deduct:Number(r.deduct_days||0),
+  reason:r.reason||'', handover:r.handover||'',
+  preDone:!!r.preconsult_done, preWith:r.preconsult_with||'',
+  preDate:String(r.preconsult_date||'').slice(0,10), preNote:r.preconsult_note||'',
+  isSpecial:!!r.is_special, specialReasons:r.special_reasons||[], specialNote:r.special_note||'',
+  status:r.status, steps:Number(r.steps_required||2),
+  attachments:r.attachments||[], finalDocHtml:r.final_doc_html||'', finalDocAt:r.final_doc_at||'',
+  submittedAt:r.submitted_at, decidedAt:r.decided_at};}
+function normAppr(a){return{id:a.id,requestId:a.request_id,step:Number(a.step||0),
+  email:a.approver_email||'',action:a.action,comment:a.comment||'',actedAt:a.acted_at};}
+function normAdj(a){return{id:a.id,empId:a.emp_id,days:Number(a.days||0),period:a.period||'',
+  reason:a.reason||'',by:a.created_by||'',at:String(a.created_at||'').slice(0,10)};}
+function normNotice(n){return{id:n.id,empId:n.emp_id,stage:String(n.stage||''),u1:!!n.u1,u1Part:n.u1_part||'',
+  docNo:n.doc_no||'',period:n.period||'',remain:Number(n.remain||0),expire:String(n.expire||'').slice(0,10),
+  toEmail:n.to_email||'',subject:n.subject||'',sentBy:n.sent_by||'',
+  sentAt:String(n.sent_at||'').slice(0,16).replace('T',' '),readAt:n.read_at?String(n.read_at).slice(0,16).replace('T',' '):''};}
+
+/* ===================== 특별결재 판정 (ga_special_flags 와 동일 규칙) =====================
+   SPECIAL_DOW / SPECIAL_MONTHEND_DAYS 는 ga_config 에서 읽는다. 하드코딩하지 않는다.
+   서버(ga_special_flags)가 최종 판정이며, 아래는 신청 화면 안내를 위한 사전 계산이다. */
+const DOW_KO=['일','월','화','수','목','금','토'];
+function specialFlags(dateS){
+  if(!dateS)return [];
+  const dows=String(cfg('SPECIAL_DOW','1,5')).split(',').map(s=>s.trim()).filter(Boolean);
+  const meN=parseInt(cfg('SPECIAL_MONTHEND_DAYS','5'),10)||0;
+  const d=lvD(dateS), out=[];
+  const dow=d.getDay();
+  if(dows.indexOf(String(dow))>=0)out.push(DOW_KO[dow]+'요일(주간 마감)');
+  if(meN>0){
+    const lastDay=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    if(d.getDate()>lastDay-meN)out.push('월말 '+meN+'일(월 마감)');
+  }
+  return out;
+}
+function specialFlagsMany(dates){
+  const set=[];
+  (dates||[]).forEach(x=>specialFlags(x.date).forEach(f=>{if(set.indexOf(f)<0)set.push(f);}));
+  return set;
+}
+/* 결재 단계 미리보기 — ga_submit_request 의 단계 결정과 동일 규칙 */
+function stepsPreview(isSpecial,deduct){
+  if(isSpecial&&String(cfg('SPECIAL_FORCE_2STEP','1'))==='1')return 2;
+  const max=parseFloat(cfg('CENTER_ONLY_MAX_DAYS','1'));
+  return (deduct<=(isNaN(max)?1:max))?1:2;
+}
+
+/* ===================== 데이터 로드 ===================== */
+function rpc(fn,args){
+  return sb.rpc(fn,args||{}).then(res=>{
+    if(res.error)throw new Error(res.error.message||'요청에 실패했습니다.');
+    return res.data;
+  });
+}
+/* 설정값은 어떤 RPC 도 반환하지 않으므로 ga_config 만 직접 조회한다.
+   (01_ga_schema.sql: ga_cfg_sel using(true) + grant select to authenticated — 의도된 경로) */
+function loadCfg(){
+  return sb.from('ga_config').select('key,value').then(res=>{
+    if(res.error)throw new Error(res.error.message);
+    ST.cfg={};(res.data||[]).forEach(r=>{ST.cfg[r.key]=r.value;});
+  });
+}
+function setTypes(list){
+  ST.types=[];ST.typeById={};ST.typeByCode={};
+  (list||[]).forEach(t=>{
+    const o={id:t.id,code:t.code,name:t.name,deductible:!!t.deductible,
+      units:t.units||'종일',needsProof:!!t.needsProof};
+    ST.typeById[t.id]=o;ST.typeByCode[t.code]=o;ST.types.push(o);
+  });
+}
+/* 내 데이터는 ga_my_data() 원샷으로 전부 받는다 (me·types[id 포함]·requests·approvals·adjustments·notices) */
+function loadMy(){
+  return rpc('ga_my_data').then(d=>{
+    if(!d||d.needLogin)throw new Error('GA 휴가 시스템 사용 대상이 아닙니다.');
+    ST.me=d.me;
+    setTypes(d.types);
+    ST.my.requests=(d.requests||[]).map(normReq);
+    ST.my.approvals=(d.approvals||[]).map(normAppr);
+    ST.my.adjustments=(d.adjustments||[]).map(normAdj);
+    ST.my.notices=d.notices||[];
+  });
+}
+function loadAdmin(){
+  return rpc('ga_admin_data').then(d=>{
+    ST.admin={
+      companies:(d.companies||[]),
+      employees:(d.employees||[]),
+      requests:(d.requests||[]).map(normReq),
+      approvals:(d.approvals||[]).map(normAppr),
+      adjustments:(d.adjustments||[]).map(normAdj),
+      notices:(d.notices||[]).map(normNotice)
+    };
+    return ST.admin;
+  });
+}
+/* 승인자 화면에서 내가 보는 결재 이력 (관리자 데이터가 있으면 그쪽 우선) */
+function apprOfReq(id){
+  const src=(ST.admin&&ST.admin.approvals.length?ST.admin.approvals:ST.my.approvals)||[];
+  return src.filter(a=>String(a.requestId)===String(id)).sort((a,b)=>a.step-b.step||String(a.actedAt).localeCompare(String(b.actedAt)));
+}
+function empName(id){
+  if(ST.admin){const e=(ST.admin.employees||[]).find(x=>String(x.id)===String(id));if(e)return e.name;}
+  if(ST.me&&String(ST.me.id)===String(id))return ST.me.name;
+  return '—';
+}
+
+/* ===================== 네비게이션 ===================== */
+const PAGES={
+  home:   {t:'홈',          d:'내 결재 진행 현황과 최근 신청 내역입니다.',             render:renderHome},
+  apply:  {t:'휴가 신청',    d:'사유·인수인계·사전 협의를 확인한 뒤 결재를 상신합니다.',  render:renderApply},
+  mybox:  {t:'내 결재함',    d:'내가 상신한 결재 문서와 진행 단계입니다.',              render:renderMyBox},
+  myleave:{t:'내 연차',      d:'산정기간별 발생·사용·잔여 연차와 촉진 통보 수신 이력입니다.',render:renderMyLeave},
+  inbox:  {t:'결재 대기함',  d:'1차·최종 결재를 기다리는 문서입니다.',                  render:renderInbox,  admin:true},
+  dash:   {t:'연차 현황',    d:'전원 연차 발생·사용·잔여 현황과 조정 연차 등록입니다.',   render:renderDash,   admin:true},
+  promo:  {t:'연차 촉진',    d:'근로기준법 제61조 연차사용촉진 대상과 서면통보 이력입니다.',render:renderPromo,  admin:true}
+};
+function canSee(k){const p=PAGES[k];return !p.admin||(ST.me&&ST.me.canViewAll===true);}
+function buildNav(){
+  const nav=document.getElementById('navBar');
+  nav.innerHTML=Object.keys(PAGES).filter(canSee).map(k=>
+    `<button class="nav-t${ST.page===k?' on':''}" data-k="${k}" onclick="go('${k}')">${escH(PAGES[k].t)}</button>`
+  ).join('');
+}
+function go(k){
+  if(!PAGES[k]||!canSee(k))k='home';
+  ST.page=k;buildNav();
+  const p=PAGES[k];
+  document.getElementById('content').innerHTML=
+    `<div class="page-h"><h2>${escH(p.t)}</h2><p>${escH(p.d)}</p></div><div id="pg"><div class="card card-pad hint">불러오는 중…</div></div>`;
+  window.scrollTo(0,0);
+  try{p.render();}catch(e){pg('<div class="card card-pad">'+escH(e.message||'화면을 그리지 못했습니다.')+'</div>');}
+}
+function pg(html){const el=document.getElementById('pg');if(el)el.innerHTML=html;}
+
+/* ===================== 홈 ===================== */
+function renderHome(){
+  const rs=ST.my.requests;
+  const c={submitted:0,center_approved:0,approved:0,rejected:0};
+  rs.forEach(r=>{if(c[r.status]!==undefined)c[r.status]++;});
+  const recent=rs.slice(0,5);
+
+  /* ⚠️ 잔여 연차는 기본적으로 홈에 노출하지 않는다 (ga_config SHOW_BALANCE_ON_HOME) */
+  let balCard='';
+  if(ST.me&&ST.me.showBalanceOnHome===true){
+    const b=myBalance();
+    balCard=`<div class="card card-pad"><div class="bal-box">
+      <span class="hint">잔여 연차</span><span class="big">${lvF1(b.remain)}</span><span class="hint">일</span>
+      <span class="hint" style="margin-left:auto">산정기간 ${escH(grantPeriod(ST.me.joinDate))} · 발생 ${lvF1(b.acc)}일 · 사용 ${lvF1(b.use)}일</span>
+    </div></div>`;
+  }
+
+  pg(`
+  ${balCard}
+  <div class="stat-grid">
+    <div class="stat s1"><div class="k">상신</div><div class="v">${c.submitted}</div></div>
+    <div class="stat s2"><div class="k">1차 승인</div><div class="v">${c.center_approved}</div></div>
+    <div class="stat s3"><div class="k">최종 승인</div><div class="v">${c.approved}</div></div>
+    <div class="stat s4"><div class="k">반려</div><div class="v">${c.rejected}</div></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <div class="card-h"><h3>최근 신청</h3><span class="sub">최근 5건</span><div class="sp"></div>
+      <button class="btn btn-ghost btn-sm" onclick="go('mybox')">내 결재함</button></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>문서번호</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th></tr></thead>
+      <tbody>${recent.length?recent.map(r=>reqRow(r,false)).join(''):'<tr><td colspan="5"><div class="empty">아직 상신한 문서가 없습니다.</div></td></tr>'}</tbody>
+    </table></div>
+  </div>
+  <div class="card card-pad">
+    <div class="info">월요일·금요일 또는 월말 구간이 포함된 신청은 <b>특별 결재</b>로 분류되어 센터장·대표 2단계 결재를 거칩니다.
+    신청 전 임원과 사전 협의를 마치고, 업무 인수인계 내용을 함께 기재해 주세요.</div>
+  </div>`);
+}
+function myBalance(){
+  const m=buildMyMember();
+  if(!m||!m.cur)return{acc:0,use:0,adj:0,remain:0};
+  return{acc:m.cur.acc,use:m.cur.use,adj:lvAdjOf(m.cur),remain:lvRemainAdj(m.cur)};
+}
+/* 내 연차 모델 — admin 과 같은 lvBuild 로직을 1인 데이터로 돌린다 */
+function buildMyMember(){
+  if(!ST.me)return null;
+  const usage=ST.my.requests.filter(r=>r.status==='approved'&&typeOf(r).deductible)
+    .map(r=>({empId:ST.me.id,dates:r.dates,typeName:typeOf(r).name}));
+  const adjust=ST.my.adjustments.map(a=>({empId:ST.me.id,days:a.days,at:a.at}));
+  const save=LV.data;
+  lvBuild({employees:[{id:ST.me.id,name:ST.me.name,email:ST.me.email,dept:ST.me.dept,
+      jobTitle:ST.me.jobTitle,joinDate:ST.me.joinDate,status:'재직',active:true,leaveDate:'',
+      companyCode:(myCo()&&myCo().code)||'',companyName:(myCo()&&myCo().name)||''}],
+    usage,adjust,notices:[]});
+  const m=LV.members[0]||null;
+  LV.data=save;LV.members=[];  /* 승인자 화면 상태를 오염시키지 않는다 */
+  return m;
+}
+
+/* ===================== 공통 행 렌더 ===================== */
+function reqRow(r,withName){
+  const t=typeOf(r);
+  return `<tr class="clickable${r.isSpecial?' sp-row':''}" onclick="openDoc('${r.id}')">
+    <td class="mono">${escH(r.docNo)}</td>
+    ${withName?`<td class="t-name">${escH(empName(r.empId))}</td>`:''}
+    <td>${escH(t.name)}${r.isSpecial?'<span class="badge-sp">특별</span>':''}</td>
+    <td>${escH(fmtPeriod(r.dates))}</td>
+    <td class="num">${r.deduct?lvF1(r.deduct):'—'}</td>
+    <td>${stBadge(r.status)}</td>
+  </tr>`;
+}
+
+/* ===================== 휴가 신청 ===================== */
+let APPLY={rows:[{date:'',unit:'종일'}]};
+function renderApply(){
+  if(!ST.types.length){pg('<div class="card card-pad">휴가 종류를 불러오지 못했습니다.</div>');return;}
+  APPLY={rows:[{date:'',unit:'종일'}]};
+  const topts=ST.types.map((t,i)=>`<option value="${escH(t.code)}"${i===0?' selected':''}>${escH(t.name)}</option>`).join('');
+  const aopts=approvers().map(a=>`<option value="${escH(a.email)}">${escH((a.name+' '+(a.jobTitle||'')).trim())}</option>`).join('');
+  pg(`
+  <div class="card card-pad">
+    <div class="sec">
+      <div class="sec-t"><span class="no">1</span>휴가 종류</div>
+      <div class="form-row">
+        <select class="input" id="gaType" onchange="onTypeChange()">${topts}</select>
+        <span class="hint" id="gaTypeHint"></span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-t"><span class="no">2</span>일자 선택</div>
+      <div id="gaDates"></div>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="addDateRow()">+ 일자 추가</button>
+      <div class="sum-bar" style="margin-top:10px">
+        <span>선택 일수 <b id="gaCount">0</b>일</span>
+        <span>연차 차감 <b id="gaDeduct">0</b>일</span>
+        <span>예상 결재 단계 <b id="gaSteps">—</b></span>
+      </div>
+      <div id="gaSpBanner"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-t"><span class="no">3</span>신청 사유</div>
+      <div class="form-row">
+        <textarea class="input" id="gaReason" placeholder="휴가 사유를 구체적으로 기재해 주세요."></textarea>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-t"><span class="no">4</span>업무 인수인계</div>
+      <div class="form-row">
+        <label>대행자 · 인계 내용<span class="req">*</span></label>
+        <textarea class="input" id="gaHandover" placeholder="예) 대행자 OOO — 거래처 응대 및 전표 처리 인계, 긴급 건은 OOO 연락"></textarea>
+        <span class="hint">부재 기간 중 업무 연속성 확인을 위해 대행자와 인계 범위를 적어 주세요.</span>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-t"><span class="no">5</span>사전 임원 협의 확인</div>
+      <div class="chk-row">
+        <input type="checkbox" id="gaPreDone" onchange="updateSubmitState()">
+        <label for="gaPreDone">아래 임원과 휴가 사용에 대해 사전 협의했습니다.</label>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <div class="form-row" style="flex:1 1 200px;margin:0">
+          <label>협의 대상<span class="req">*</span></label>
+          <select class="input" id="gaPreWith">${aopts}</select>
+        </div>
+        <div class="form-row" style="flex:1 1 160px;margin:0">
+          <label>협의 일자</label>
+          <input type="date" class="input" id="gaPreDate" value="${today()}">
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <label>협의 내용 메모 <span class="hint" style="display:inline">(선택)</span></label>
+        <textarea class="input" id="gaPreNote" style="min-height:60px" placeholder="협의 시 논의한 내용을 간단히 기재합니다."></textarea>
+      </div>
+    </div>
+
+    <div class="sec" id="gaSpSec" style="display:none">
+      <div class="sec-t"><span class="no">6</span>특별 결재 사유</div>
+      <div class="form-row">
+        <textarea class="input" id="gaSpNote" placeholder="마감 구간에 휴가를 사용해야 하는 사정과 업무 연속성 확보 방안을 기재해 주세요."></textarea>
+        <span class="hint">마감 구간이 포함된 신청에 한해 필수로 작성합니다.</span>
+      </div>
+    </div>
+
+    <div class="sec" id="gaProofSec" style="display:none">
+      <div class="sec-t"><span class="no">7</span>증빙 첨부 링크</div>
+      <div class="form-row">
+        <input type="url" class="input" id="gaProof" placeholder="https://www.dropbox.com/...">
+        <span class="hint">증빙 파일을 Dropbox 에 올린 뒤 공유 링크를 입력해 주세요.</span>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap">
+      <button class="btn btn-ghost" type="button" onclick="renderApply()">초기화</button>
+      <button class="btn btn-primary" type="button" id="gaSubmit" disabled onclick="submitRequest()">결재 상신</button>
+    </div>
+    <div class="hint" id="gaSubmitHint" style="text-align:right;margin-top:6px">사전 임원 협의 확인에 체크해야 상신할 수 있습니다.</div>
+  </div>`);
+  renderDateRows();onTypeChange();
+}
+function curType(){
+  const el=document.getElementById('gaType');
+  return (el&&ST.typeByCode[el.value])||ST.types[0]||{name:'',deductible:false,units:'종일',needsProof:false};
+}
+function unitOpts(t,sel){
+  return String(t.units||'종일').split('|').map(u=>u.trim()).filter(Boolean)
+    .map(u=>`<option value="${escH(u)}"${u===sel?' selected':''}>${escH(u)}</option>`).join('');
+}
+function onTypeChange(){
+  const t=curType();
+  document.getElementById('gaTypeHint').textContent=
+    (t.deductible?'연차에서 차감됩니다.':'연차에서 차감되지 않습니다.')+(t.needsProof?' 증빙 첨부가 필요합니다.':'');
+  document.getElementById('gaProofSec').style.display=t.needsProof?'':'none';
+  const units=String(t.units||'종일').split('|').map(u=>u.trim());
+  APPLY.rows.forEach(r=>{if(units.indexOf(r.unit)<0)r.unit=units[0]||'종일';});
+  renderDateRows();
+}
+function renderDateRows(){
+  const t=curType();
+  document.getElementById('gaDates').innerHTML=APPLY.rows.map((r,i)=>`
+    <div class="date-block">
+      <input type="date" class="input dt" value="${escH(r.date)}" onchange="setDate(${i},this.value)">
+      <span class="dow">${r.date?'('+dowKo(r.date)+')':''}</span>
+      <select class="input unit" onchange="setUnit(${i},this.value)">${unitOpts(t,r.unit)}</select>
+      <button class="rm" type="button" title="삭제" onclick="rmDateRow(${i})">×</button>
+    </div>`).join('');
+  calcDeduct();
+}
+function setDate(i,v){APPLY.rows[i].date=v;renderDateRows();}
+function setUnit(i,v){APPLY.rows[i].unit=v;calcDeduct();}
+function addDateRow(){const t=curType();APPLY.rows.push({date:'',unit:String(t.units||'종일').split('|')[0].trim()});renderDateRows();}
+function rmDateRow(i){if(APPLY.rows.length<=1){APPLY.rows[0]={date:'',unit:APPLY.rows[0].unit};}else APPLY.rows.splice(i,1);renderDateRows();}
+function pickedDates(){
+  const seen={},out=[];
+  APPLY.rows.forEach(r=>{if(r.date&&!seen[r.date]){seen[r.date]=1;out.push({date:r.date,unit:r.unit||'종일'});}});
+  return out.sort((a,b)=>a.date<b.date?-1:1);
+}
+/* === calcDeduct — HR 원본(날짜별 모드). UNIT_DEDUCT 합산 방식 동일 === */
+function calcDeduct(){
+  const ded=curType().deductible;let sum=0;
+  document.querySelectorAll('#gaDates .date-block').forEach(b=>sum+=UNIT_DEDUCT[b.querySelector('.unit').value]||0);
+  const el=document.getElementById('gaDeduct');if(el)el.textContent=ded?r1(sum):0;
+  const picked=pickedDates();
+  const cnt=document.getElementById('gaCount');if(cnt)cnt.textContent=picked.length;
+  updateSpecial(picked,ded?sum:0);
+  updateSubmitState();
+}
+function updateSpecial(picked,deduct){
+  const flags=specialFlagsMany(picked);
+  const spDays=picked.filter(d=>specialFlags(d.date).length>0);
+  const isSp=flags.length>0;
+  const sec=document.getElementById('gaSpSec');if(sec)sec.style.display=isSp?'':'none';
+  const steps=stepsPreview(isSp,deduct);
+  const stEl=document.getElementById('gaSteps');
+  if(stEl)stEl.textContent=picked.length?(steps===1?'1단계 (센터장 전결)':'2단계 (센터장 → 대표)'):'—';
+  const b=document.getElementById('gaSpBanner');
+  if(!b)return;
+  b.innerHTML=isSp?`<div class="notice" style="margin-top:10px">
+    선택하신 날짜 중 <b>${spDays.length}일</b>이 마감 구간(월요일/금요일/월말 ${escH(String(cfg('SPECIAL_MONTHEND_DAYS','5')))}일)에 해당합니다.
+    특별 결재로 분류되어 센터장·대표 2단계 결재를 거칩니다.
+    <ul>${spDays.map(d=>'<li>'+escH(fmtD(d.date))+' ('+dowKo(d.date)+') — '+escH(specialFlags(d.date).join(', '))+'</li>').join('')}</ul>
+    </div>`:'';
+}
+function updateSubmitState(){
+  const ok=!!(document.getElementById('gaPreDone')||{}).checked;
+  const btn=document.getElementById('gaSubmit');
+  if(btn)btn.disabled=!ok;
+  const h=document.getElementById('gaSubmitHint');
+  if(h)h.textContent=ok?'상신 후에는 1차 결재 전까지 철회할 수 있습니다.':'사전 임원 협의 확인에 체크해야 상신할 수 있습니다.';
+}
+function submitRequest(){
+  const t=curType();
+  const dates=pickedDates();
+  const reason=(document.getElementById('gaReason').value||'').trim();
+  const handover=(document.getElementById('gaHandover').value||'').trim();
+  const preDone=document.getElementById('gaPreDone').checked;
+  const preWith=document.getElementById('gaPreWith').value;
+  const preDate=document.getElementById('gaPreDate').value||'';
+  const preNote=(document.getElementById('gaPreNote').value||'').trim();
+  const spEl=document.getElementById('gaSpNote');
+  const specialNote=spEl?(spEl.value||'').trim():'';
+  const proofEl=document.getElementById('gaProof');
+  const proof=proofEl?(proofEl.value||'').trim():'';
+
+  if(!dates.length){toast('휴가 일자를 선택해 주세요.','err');return;}
+  if(!reason){toast('신청 사유를 입력해 주세요.','err');return;}
+  if(!handover){toast('업무 인수인계 내용을 입력해 주세요.','err');return;}
+  if(!preDone){toast('임원과의 사전 협의 확인이 필요합니다.','err');return;}
+  if(!preWith){toast('사전 협의한 임원을 선택해 주세요.','err');return;}
+  const isSp=specialFlagsMany(dates).length>0;
+  if(isSp&&!specialNote){toast('특별 결재 사유를 입력해 주세요.','err');return;}
+  if(t.needsProof&&!proof){toast('증빙 첨부 링크를 입력해 주세요.','err');return;}
+
+  const p={
+    typeCode:t.code, dates:dates, reason:reason, handover:handover,
+    preconsultDone:true, preconsultWith:preWith, preconsultDate:preDate,
+    preconsultNote:preNote, specialNote:specialNote,
+    attachments:proof?[{name:'증빙 링크',url:proof}]:[]
+  };
+  const btn=document.getElementById('gaSubmit');if(btn){btn.disabled=true;btn.textContent='상신 중…';}
+  rpc('ga_submit_request',{p:p}).then(d=>{
+    toast('결재를 상신했습니다. 문서번호 '+(d&&d.docNo||''),'ok');
+    return loadMy().then(()=>go('mybox'));
+  }).catch(e=>{
+    if(btn){btn.disabled=false;btn.textContent='결재 상신';}
+    /* 서버(ga_submit_request) 판정이 최종이므로 메시지를 그대로 노출한다 */
+    toast(e.message||'상신에 실패했습니다.','err');
+  });
+}
+
+/* ===================== 내 결재함 ===================== */
+function renderMyBox(){
+  const rs=ST.my.requests;
+  pg(`<div class="card">
+    <div class="card-h"><h3>내 결재 문서</h3><span class="sub">총 ${rs.length}건</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>문서번호</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상태</th><th>결재 진행</th><th></th></tr></thead>
+      <tbody>${rs.length?rs.map(r=>{
+        const prog=progressText(r);
+        return `<tr class="clickable${r.isSpecial?' sp-row':''}" onclick="openDoc('${r.id}')">
+          <td class="mono">${escH(r.docNo)}</td>
+          <td>${escH(typeOf(r).name)}${r.isSpecial?'<span class="badge-sp">특별</span>':''}</td>
+          <td>${escH(fmtPeriod(r.dates))}</td>
+          <td class="num">${r.deduct?lvF1(r.deduct):'—'}</td>
+          <td>${stBadge(r.status)}</td>
+          <td class="hint">${escH(prog)}</td>
+          <td style="text-align:right">${(r.status==='submitted'||r.status==='center_approved')
+            ?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();withdraw('${r.id}','${escH(r.docNo)}')">철회</button>`:''}</td>
+        </tr>`;}).join('')
+        :'<tr><td colspan="7"><div class="empty">상신한 문서가 없습니다.</div></td></tr>'}</tbody>
+    </table></div></div>`);
+}
+function progressText(r){
+  const as=apprOfReq(r.id);
+  if(r.status==='withdrawn')return '신청자 철회';
+  if(r.status==='rejected'){const a=as.filter(x=>x.action==='reject')[0];return (a?apprName(a.email)+' ':'')+'반려';}
+  if(r.status==='approved'){
+    const last=as[as.length-1];
+    return (last?apprName(last.email):'')+' 최종 승인'+(r.steps===1?' (전결)':'');
+  }
+  if(r.status==='center_approved')return '1차 승인 완료 · 대표 결재 대기';
+  return r.steps===1?'센터장 결재 대기 (1단계 전결)':'센터장 결재 대기 (총 2단계)';
+}
+function withdraw(id,docNo){
+  modal('결재 철회','',`<p style="font-size:13.5px;line-height:1.8">문서번호 <b>${escH(docNo)}</b> 를 철회합니다.<br>철회한 문서는 되돌릴 수 없으며, 필요 시 다시 상신해야 합니다.</p>`,
+   [['닫기','btn-ghost',closeModal],['철회하기','btn-danger',function(){
+     closeModal();
+     rpc('ga_withdraw',{p_id:id}).then(()=>{toast('철회했습니다.','ok');return loadMy().then(()=>go('mybox'));})
+       .catch(e=>toast(e.message||'철회에 실패했습니다.','err'));
+   }]]);
+}
+
+/* ===================== 내 연차 ===================== */
+function renderMyLeave(){
+  const m=buildMyMember();
+  if(!m){pg('<div class="card card-pad">연차 정보를 계산할 수 없습니다. 입사일이 등록되어 있는지 확인해 주세요.</div>');return;}
+  const ns=ST.my.notices||[];
+  const adjs=ST.my.adjustments;
+  pg(`
+  <div class="card">
+    <div class="card-h"><h3>산정기간별 연차</h3>
+      <span class="sub">입사일 ${escH(ST.me.joinDate)} · 현재 산정기간 ${escH(grantPeriod(ST.me.joinDate))}</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>회차</th><th>산정기간</th><th>소멸 예정</th><th class="num">발생</th><th class="num">조정</th><th class="num">사용</th><th class="num">잔여</th><th>비고</th></tr></thead>
+      <tbody>${m.periods.slice().reverse().map(p=>`
+        <tr${p.cur?' style="background:#F7F9FC"':''}>
+          <td class="mono">${p.n}</td>
+          <td class="mono">${escH(p.start)} ~ ${escH(p.end)}</td>
+          <td class="mono">${escH(p.expire)}</td>
+          <td class="num">${lvF1(p.acc)}</td>
+          <td class="num">${lvAdjF(lvAdjOf(p))}</td>
+          <td class="num">${lvF1(p.use)}</td>
+          <td class="num"><b>${lvF1(lvRemainAdj(p))}</b></td>
+          <td class="hint">${escH([p.cur?'현재 기간':'',p.tag||''].filter(Boolean).join(' · '))}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="card-pad hint">발생 연차는 근로기준법 제60조에 따라 산정합니다. 입사 1년 미만은 개근한 달마다 1일(최대 11일), 1년 이상은 15일에 3년 차부터 2년마다 1일씩 가산(최대 25일)합니다.</div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>조정 연차</h3><span class="sub">회사가 별도로 가감한 일수</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>등록일</th><th class="num">일수</th><th>산정기간</th><th>사유</th></tr></thead>
+      <tbody>${adjs.length?adjs.slice().reverse().map(a=>`<tr>
+        <td class="mono">${escH(a.at)}</td><td class="num">${lvAdjF(a.days)}</td>
+        <td class="mono">${escH(a.period||'—')}</td><td>${escH(a.reason||'—')}</td></tr>`).join('')
+        :'<tr><td colspan="4"><div class="empty">조정 내역이 없습니다.</div></td></tr>'}</tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><h3>연차사용촉진 통보 수신 이력</h3><span class="sub">근로기준법 제61조</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>발송일시</th><th>단계</th><th>산정기간</th><th class="num">잔여</th><th>소멸 예정</th><th>수신 확인</th></tr></thead>
+      <tbody>${ns.length?ns.map(n=>`<tr>
+        <td class="mono">${escH(String(n.sentAt||'').slice(0,16).replace('T',' '))}</td>
+        <td>${escH(String(n.stage)==='2'?'2차':'1차')}</td>
+        <td class="mono">${escH(n.period||'—')}</td>
+        <td class="num">${n.remain!=null?lvF1(Number(n.remain)):'—'}</td>
+        <td class="mono">${escH(String(n.expire||'').slice(0,10))}</td>
+        <td>${n.readAt?'<span class="badge-out">확인</span>':'<span class="badge-out">미확인</span>'}</td>
+      </tr>`).join(''):'<tr><td colspan="6"><div class="empty">수신한 통보가 없습니다.</div></td></tr>'}</tbody>
+    </table></div>
+  </div>`);
+}
+
+/* ===================== 결재 대기함 (승인자) ===================== */
+function renderInbox(){
+  if(!ST.admin){loadAdmin().then(renderInbox).catch(e=>pg('<div class="card card-pad">'+escH(e.message)+'</div>'));return;}
+  const all=ST.admin.requests;
+  const s1=all.filter(r=>r.status==='submitted');
+  const s2=all.filter(r=>r.status==='center_approved');
+  pg(`
+  ${inboxTable('1차 결재 대기 (센터장)',s1,'아직 1차 결재를 기다리는 문서가 없습니다.')}
+  ${inboxTable('최종 결재 대기 (대표)',s2,'최종 결재를 기다리는 문서가 없습니다.')}
+  <div class="card card-pad"><div class="info">문서를 클릭하면 결재란과 신청 내용 전문을 확인할 수 있습니다. 반려 시에는 사유 입력이 필요합니다.</div></div>`);
+}
+function inboxTable(title,rows,emptyMsg){
+  return `<div class="card">
+    <div class="card-h"><h3>${escH(title)}</h3><span class="sub">${rows.length}건</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>문서번호</th><th>신청자</th><th>종류</th><th>기간</th><th class="num">일수</th><th>상신일</th><th></th></tr></thead>
+      <tbody>${rows.length?rows.map(r=>`
+        <tr class="clickable${r.isSpecial?' sp-row':''}" onclick="openDoc('${r.id}')">
+          <td class="mono">${escH(r.docNo)}</td>
+          <td class="t-name">${escH(empName(r.empId))}</td>
+          <td>${escH(typeOf(r).name)}${r.isSpecial?'<span class="badge-sp">특별</span>':''}</td>
+          <td>${escH(fmtPeriod(r.dates))}</td>
+          <td class="num">${r.deduct?lvF1(r.deduct):'—'}</td>
+          <td class="mono">${escH(fmtD(String(r.submittedAt).slice(0,10)))}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn btn-approve btn-sm" onclick="event.stopPropagation();decide('${r.id}','approve')">승인</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();decide('${r.id}','reject')">반려</button>
+          </td>
+        </tr>`).join(''):'<tr><td colspan="7"><div class="empty">'+escH(emptyMsg)+'</div></td></tr>'}</tbody>
+    </table></div></div>`;
+}
+function decide(id,action){
+  const r=findReq(id);if(!r)return;
+  const isRej=(action==='reject');
+  modal(isRej?'결재 반려':'결재 승인','',`
+    <p style="font-size:13.5px;line-height:1.8;margin-bottom:12px">
+      문서번호 <b>${escH(r.docNo)}</b> · ${escH(empName(r.empId))} · ${escH(typeOf(r).name)} ${escH(fmtPeriod(r.dates))}
+      ${r.isSpecial?'<br><span style="color:var(--st-rej);font-weight:700">특별 결재 건입니다.</span>':''}
+    </p>
+    <div class="form-row">
+      <label>결재 의견${isRej?'<span class="req">*</span>':' <span class="hint" style="display:inline">(선택)</span>'}</label>
+      <textarea class="input" id="dcCmt" style="min-height:70px" placeholder="${isRej?'반려 사유를 입력해 주세요.':'필요 시 의견을 남겨 주세요.'}"></textarea>
+    </div>`,
+    [['닫기','btn-ghost',closeModal],
+     [isRej?'반려':'승인',isRej?'btn-danger':'btn-approve',function(){
+       const c=(document.getElementById('dcCmt').value||'').trim();
+       if(isRej&&!c){toast('반려 사유를 입력해 주세요.','err');return;}
+       closeModal();
+       rpc('ga_decide',{p_id:id,p_action:action,p_comment:c}).then(d=>{
+         toast(isRej?'반려 처리했습니다.':('승인했습니다. (현재 상태: '+stText(d&&d.status)+')'),'ok');
+         return loadAdmin().then(()=>go(ST.page));
+       }).catch(e=>toast(e.message||'결재 처리에 실패했습니다.','err'));
+     }]]);
+}
+function findReq(id){
+  const a=(ST.admin&&ST.admin.requests||[]).find(r=>String(r.id)===String(id));
+  return a||ST.my.requests.find(r=>String(r.id)===String(id))||null;
+}
+
+/* ===================== 결재 문서 상세 ===================== */
+/* 결재란 표기 규칙 (전결 = 상위 결재권자의 권한을 위임받아 하위자가 최종 결재)
+     · steps_required=1 (센터장이 최종)        → 센터장 서명 / 대표 '전결'
+     · steps_required=2, 센터장→대표 순차 승인 → 양쪽 서명
+     · steps_required=2, 대표가 1단계에서 승인 → 센터장 '생략' / 대표 서명
+     · 반려                                    → 반려한 칸에 '반려', 나머지 공란 */
+function apprCells(r){
+  const as=apprOfReq(r.id);
+  const a1=as.filter(a=>a.step===1)[0]||null;
+  const a2=as.filter(a=>a.step===2)[0]||null;
+  const sign=a=>`<span class="an">${escH(apprOf(a.email)?apprOf(a.email).name:String(a.email).split('@')[0])}</span>`
+    +`<span class="ad">${escH(fmtDT(a.actedAt))}</span>`
+    +`<span class="ax ${a.action==='approve'?'ok':'no'}">${a.action==='approve'?'승인':'반려'}</span>`;
+  const wait='<span class="ax wait">대기</span>';
+  const mark=t=>'<span class="ax na">'+t+'</span>';
+  const blank='';
+
+  if(r.status==='rejected'){
+    const rej=as.filter(a=>a.action==='reject')[0]||null;
+    if(!rej)return {c1:blank,c2:blank};
+    const byExec=!!(apprOf(rej.email)&&apprOf(rej.email).role==='exec');
+    return (rej.step===2||byExec)?{c1:blank,c2:sign(rej)}:{c1:sign(rej),c2:blank};
+  }
+  if(r.status==='withdrawn')return {c1:a1?sign(a1):blank,c2:a2?sign(a2):blank};
+
+  /* 대표가 1단계에서 바로 결재한 건(ga_decide: v_role='exec' → 즉시 approved) */
+  const execAt1=!!(a1&&!a2&&apprOf(a1.email)&&apprOf(a1.email).role==='exec');
+  if(execAt1)return {c1:mark('생략'),c2:sign(a1)};
+
+  if(r.steps===1)return {c1:a1?sign(a1):wait,c2:mark('전결')};
+  return {c1:a1?sign(a1):wait,c2:a2?sign(a2):wait};
+}
+function docSheetHtml(r){
+  const t=typeOf(r);
+  const cells=apprCells(r);
+  const dateList=(r.dates||[]).map(d=>fmtD(d.date)+' ('+dowKo(d.date)+') '+d.unit).join('\n');
+  const att=(r.attachments||[]).map(a=>{
+    const url=(typeof a==='string')?a:(a&&a.url)||'';
+    return url?'<a href="'+escH(url)+'" target="_blank" rel="noopener noreferrer">'+escH(url)+'</a>':'';
+  }).filter(Boolean).join('<br>');
+  const preTxt=r.preDone
+    ? apprName(r.preWith)+' · '+(r.preDate?fmtD(r.preDate):'일자 미기재')+(r.preNote?'\n'+r.preNote:'')
+    : '미확인';
+  return `
+  <div class="doc-sheet" id="docSheet">
+    <h1 class="doc-title">휴 가 신 청 서</h1>
+    <div class="doc-sub">${escH(coNameOfEmp(r.empId))} · GA · 문서번호 ${escH(r.docNo)}</div>
+    <table class="appr-line">
+      <tr><th>신 청 자</th><th>센 터 장 (1차)</th><th>대 표 (최종)</th></tr>
+      <tr>
+        <td><span class="an">${escH(empName(r.empId))}</span>
+            <span class="ad">${escH(fmtDT(r.submittedAt))}</span>
+            <span class="ax ok">상신</span></td>
+        <td>${cells.c1}</td>
+        <td>${cells.c2}</td>
+      </tr>
+    </table>
+    <table class="doc-tbl">
+      <tr><th>문서번호</th><td class="mono">${escH(r.docNo)}</td></tr>
+      <tr><th>신청일</th><td class="mono">${escH(fmtDT(r.submittedAt))}</td></tr>
+      <tr><th>휴가 종류</th><td>${escH(t.name)}${r.isSpecial?'　<b style="color:#B4433C">[특별 결재]</b>':''}</td></tr>
+      <tr><th>기간</th><td class="mono">${escH(r.startDate)} ~ ${escH(r.endDate)}</td></tr>
+      <tr><th>일자 내역</th><td class="mono">${escH(dateList)}</td></tr>
+      <tr><th>연차 차감</th><td>${r.deduct?lvF1(r.deduct)+'일':'차감 없음'}</td></tr>
+      <tr><th>신청 사유</th><td>${escH(r.reason)}</td></tr>
+      <tr><th>업무 인수인계</th><td>${escH(r.handover)}</td></tr>
+      <tr><th>사전 임원 협의</th><td>${escH(preTxt)}</td></tr>
+      ${r.isSpecial?`<tr><th>특별 결재 구분</th><td>${escH((r.specialReasons||[]).join(', '))}</td></tr>
+      <tr><th>특별 결재 사유</th><td>${escH(r.specialNote)}</td></tr>`:''}
+      ${att?`<tr><th>증빙 첨부</th><td>${att}</td></tr>`:''}
+      <tr><th>결재 단계</th><td>${r.steps===1?'1단계 (센터장 전결)':'2단계 (센터장 → 대표)'}</td></tr>
+      <tr><th>현재 상태</th><td>${escH(stText(r.status))}</td></tr>
+    </table>
+    <div class="doc-foot">
+      <div class="d">${escH(String(r.submittedAt||'').slice(0,10).replace(/-/g,'. '))} 상신</div>
+      <div class="co">${escH(coNameOfEmp(r.empId))} GA</div>
+    </div>
+  </div>`;
+}
+function apprLogHtml(r){
+  const as=apprOfReq(r.id);
+  if(!as.length)return '';
+  return `<div class="appr-log no-print">${as.map(a=>`
+    <div class="it">
+      <b>${escH(apprName(a.email))}</b> · ${escH(a.step===1?'1차':'최종')} ${a.action==='approve'?'승인':'반려'}
+      <span class="mt"> · ${escH(fmtDT(a.actedAt))}</span>
+      ${a.comment?'<div style="margin-top:4px;white-space:pre-wrap">'+escH(a.comment)+'</div>':''}
+    </div>`).join('')}</div>`;
+}
+function openDoc(id){
+  const r=findReq(id);
+  if(!r){toast('문서를 찾을 수 없습니다.','err');return;}
+  const isAdmin=!!(ST.me&&ST.me.canViewAll===true);
+  const foot=[['닫기','btn-ghost',closeModal],['인쇄 · PDF 저장','btn-secondary',function(){window.print();}]];
+  if(!isAdmin&&(r.status==='submitted'||r.status==='center_approved'))
+    foot.push(['철회','btn-danger',function(){closeModal();withdraw(r.id,r.docNo);}]);
+  if(isAdmin&&(r.status==='submitted'||r.status==='center_approved')){
+    foot.push(['반려','btn-danger',function(){closeModal();decide(r.id,'reject');}]);
+    foot.push(['승인','btn-approve',function(){closeModal();decide(r.id,'approve');}]);
+  }
+  if(isAdmin&&r.status==='approved'){
+    foot.push([r.finalDocAt?('보관 완료 ('+fmtDT(r.finalDocAt)+')'):'결재문서 보관',
+      r.finalDocAt?'btn-ghost':'btn-primary',function(){saveFinalDoc(r.id);}]);
+  }
+  modal('결재 문서 · '+r.docNo,'wide',docSheetHtml(r)+apprLogHtml(r),foot);
+}
+function saveFinalDoc(id){
+  const el=document.getElementById('docSheet');
+  if(!el){toast('결재문서 영역을 찾을 수 없습니다.','err');return;}
+  const html=el.outerHTML;
+  rpc('ga_save_final_doc',{p_id:id,p_html:html}).then(()=>{
+    toast('결재문서를 보관했습니다.','ok');closeModal();
+    return loadAdmin().then(()=>go(ST.page));
+  }).catch(e=>toast(e.message||'보관에 실패했습니다.','err'));
+}
+
+/* ===================== 연차 현황 (승인자) ===================== */
+function renderDash(){
+  if(!ST.admin){loadAdmin().then(renderDash).catch(e=>pg('<div class="card card-pad">'+escH(e.message)+'</div>'));return;}
+  lvBuild(adminLvData());
+  pg(`
+  <div class="card">
+    <div class="card-h"><h3>전원 연차 현황</h3><span class="sub">현재 산정기간 기준</span><div class="sp"></div>
+      <div class="filters">
+        <input class="input" id="dashQ" placeholder="이름 검색" style="min-width:130px">
+        <button class="btn btn-secondary btn-sm" onclick="openAdjust()">조정 연차 등록</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportRoster()">CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>이름</th><th>법인</th><th>직무</th><th>입사일</th><th>근속</th><th>산정기간</th>
+        <th class="num">발생</th><th class="num">조정</th><th class="num">사용</th><th class="num">잔여</th><th class="num">사용률</th><th>상태</th></tr></thead>
+      <tbody id="dashBody"></tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-h"><h3>조정 연차 등록 내역</h3></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>등록일</th><th>대상</th><th class="num">일수</th><th>산정기간</th><th>사유</th><th>등록자</th></tr></thead>
+      <tbody>${(ST.admin.adjustments||[]).slice().reverse().map(a=>`<tr>
+        <td class="mono">${escH(a.at)}</td><td class="t-name">${escH(empName(a.empId))}</td>
+        <td class="num">${lvAdjF(a.days)}</td><td class="mono">${escH(a.period||'—')}</td>
+        <td>${escH(a.reason||'—')}</td><td class="hint">${escH(a.by||'')}</td></tr>`).join('')
+        ||'<tr><td colspan="6"><div class="empty">등록된 조정 연차가 없습니다.</div></td></tr>'}</tbody>
+    </table></div>
+  </div>`);
+  drawDashBody();
+  bindSearch('dashQ',v=>{LV.q=v;drawDashBody();});
+}
+function adminLvData(){
+  const usage=(ST.admin.requests||[]).filter(r=>r.status==='approved'&&typeOf(r).deductible)
+    .map(r=>({empId:r.empId,dates:r.dates,typeName:typeOf(r).name}));
+  const adjust=(ST.admin.adjustments||[]).map(a=>({empId:a.empId,days:a.days,at:a.at}));
+  return {employees:ST.admin.employees||[],usage,adjust,notices:ST.admin.notices||[]};
+}
+function lvVisible(){
+  const q=String(LV.q||'').trim();
+  let ms=LV.members.slice();
+  if(q)ms=ms.filter(m=>m.name.indexOf(q)>=0||String(m.email).indexOf(q)>=0);
+  if(LV.promoOnly)ms=ms.filter(m=>m.promo);
+  return ms.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+}
+function drawDashBody(){
+  const body=document.getElementById('dashBody');if(!body)return;
+  const ms=lvVisible();
+  body.innerHTML=ms.length?ms.map(m=>{
+    const p=m.cur,remain=lvRemainAdj(p);
+    return `<tr>
+      <td class="t-name">${escH(m.name)}</td>
+      <td><span class="badge-out" title="${escH(coNameOfMember(m))}">${escH(m.companyCode||'—')}</span></td>
+      <td>${escH(m.job||'—')}</td>
+      <td class="mono">${escH(m.joinDate)}</td>
+      <td>${escH(m.tenure)}</td>
+      <td class="mono">${escH(p.start)} ~ ${escH(p.end)}</td>
+      <td class="num">${lvF1(p.acc)}</td>
+      <td class="num">${lvAdjF(lvAdjOf(p))}</td>
+      <td class="num">${lvF1(p.use)}</td>
+      <td class="num"${remain<-0.001?' style="color:var(--st-rej);font-weight:700"':''}>${lvF1(remain)}</td>
+      <td class="num">${Math.round(lvRateAdj(p))}%</td>
+      <td><span class="badge-out">${escH(m.stTxt)}</span></td>
+    </tr>`;}).join('')
+    :'<tr><td colspan="12"><div class="empty">조건에 맞는 직원이 없습니다.</div></td></tr>';
+}
+function openAdjust(){
+  const opts=LV.members.map(m=>`<option value="${escH(m.id)}">${escH(m.name)} (${escH(m.cur.start)} ~ ${escH(m.cur.end)})</option>`).join('');
+  modal('조정 연차 등록','',`
+    <div class="form-row"><label>대상자<span class="req">*</span></label><select class="input" id="ajEmp">${opts}</select></div>
+    <div class="form-row"><label>조정 일수<span class="req">*</span></label>
+      <input class="input" id="ajDays" type="number" step="0.5" placeholder="예) 1 또는 -0.5">
+      <span class="hint">양수는 추가 부여, 음수는 차감입니다.</span></div>
+    <div class="form-row"><label>산정기간</label><input class="input" id="ajPeriod" placeholder="예) 2026-04-01 ~ 2027-03-31"></div>
+    <div class="form-row"><label>사유</label><textarea class="input" id="ajReason" style="min-height:60px"></textarea></div>`,
+    [['닫기','btn-ghost',closeModal],['등록','btn-primary',function(){
+      const emp=document.getElementById('ajEmp').value;
+      const days=parseFloat(document.getElementById('ajDays').value);
+      if(isNaN(days)||days===0){toast('조정 일수를 입력해 주세요.','err');return;}
+      const period=document.getElementById('ajPeriod').value.trim();
+      const reason=document.getElementById('ajReason').value.trim();
+      closeModal();
+      rpc('ga_adjust',{p_emp:emp,p_days:days,p_period:period,p_reason:reason}).then(()=>{
+        toast('조정 연차를 등록했습니다.','ok');
+        return loadAdmin().then(()=>go('dash'));
+      }).catch(e=>toast(e.message||'등록에 실패했습니다.','err'));
+    }]]);
+}
+function exportRoster(){
+  const rows=[['이름','법인','법인명','직무','이메일','입사일','근속','재직상태','산정기간','발생','조정','사용','잔여(조정 포함)','사용률(%)','상태']];
+  lvVisible().forEach(m=>{const remain=lvRemainAdj(m.cur);
+    rows.push([m.name,m.companyCode||'',coNameOfMember(m),m.job,m.email,m.joinDate,m.tenure,m.isLeft?'퇴사':'재직',m.cur.start+' ~ '+m.cur.end,
+      lvF1(m.cur.acc),lvF1(lvAdjOf(m.cur)),lvF1(m.cur.use),lvF1(remain),Math.round(lvRateAdj(m.cur)),m.stTxt]);});
+  lvCsvDl('GA_연차현황_'+today()+'.csv',rows);
+  toast('명단 '+(rows.length-1)+'명을 CSV로 내보냈습니다.','ok');
+}
+/* ---- CSV 내보내기 (HR 원본) ---- */
+function lvCsvDl(name,rows){
+  const csv='﻿'+rows.map(r=>r.map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);a.remove();},800);
+}
+
+/* ===================== 연차 촉진 (승인자) ===================== */
+function renderPromo(){
+  if(!ST.admin){loadAdmin().then(renderPromo).catch(e=>pg('<div class="card card-pad">'+escH(e.message)+'</div>'));return;}
+  lvBuild(adminLvData());
+  const targets=LV.members.filter(m=>m.promo);
+  const ns=LV.data.notices||[];
+  pg(`
+  <div class="card card-pad">
+    <div class="info">근로기준법 제61조에 따른 연차사용촉진 대상 판정과 서면통보 미리보기입니다.
+    <b>메일 발송 기능은 연결 예정</b>이며, 현재 화면에서는 통보 서면을 확인하고 발송 이력을 내보낼 수 있습니다.</div>
+  </div>
+  <div class="card">
+    <div class="card-h"><h3>촉진 대상</h3><span class="sub">${targets.length}명</span></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>이름</th><th>산정기간</th><th class="num">잔여</th><th>소멸 예정</th><th>단계</th><th>필요 조치</th><th></th></tr></thead>
+      <tbody>${targets.length?targets.map(m=>{
+        const remain=Math.max(m.cur.acc-m.cur.use,0);
+        return `<tr>
+          <td class="t-name">${escH(m.name)}</td>
+          <td class="mono">${escH(m.cur.start)} ~ ${escH(m.cur.end)}</td>
+          <td class="num">${lvF1(remain)}</td>
+          <td class="mono">${escH(m.cur.expire)}</td>
+          <td><span class="badge-out">${escH(m.promo.badge)}</span></td>
+          <td class="hint">${escH(m.promo.action)}</td>
+          <td style="text-align:right"><button class="btn btn-secondary btn-sm" onclick="lvOpenNotice('${escH(m.id)}')">서면 확인</button></td>
+        </tr>`;}).join(''):'<tr><td colspan="7"><div class="empty">현재 촉진 대상자가 없습니다.</div></td></tr>'}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-h"><h3>서면통보 발송 이력</h3><span class="sub">${ns.length}건</span><div class="sp"></div>
+      <button class="btn btn-ghost btn-sm" onclick="lvExportNotices()">CSV 내보내기</button></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>발송일시</th><th>이름</th><th>단계</th><th>구분</th><th>소멸 예정</th><th>문서번호</th><th>수신</th><th>발송자</th></tr></thead>
+      <tbody>${ns.length?ns.map(n=>{
+        const m=LV.members.find(x=>String(x.id)===String(n.empId))||{};
+        return `<tr>
+          <td class="mono">${escH(n.sentAt)}</td><td class="t-name">${escH(m.name||n.toEmail)}</td>
+          <td>${escH(n.stage==='2'?'2차':'1차')}</td>
+          <td>${escH(n.u1?('1년 미만'+(n.u1Part==='A'?' 선발생분':n.u1Part==='B'?' 후발생분':'')):'일반')}</td>
+          <td class="mono">${escH(n.expire)}</td><td class="mono">${escH(n.docNo)}</td>
+          <td>${n.readAt?'<span class="badge-out">확인</span>':'<span class="badge-out">미확인</span>'}</td>
+          <td class="hint">${escH(n.sentBy||'')}</td></tr>`;}).join('')
+        :'<tr><td colspan="8"><div class="empty">발송 이력이 없습니다.</div></td></tr>'}</tbody>
+    </table></div>
+  </div>`);
+}
+
+/* ---- 서면통보 문서 (HR lvDoc 구조 유지 · GA 포멀 톤/팔레트) ---- */
+function lvDoc(m,dates){
+  const pr=m.promo,remain=Math.max(m.cur.acc-m.cur.use,0),dd=lvDiff(lvD(today()),lvD(m.cur.expire));
+  const docNo='GA-N-'+today().replace(/-/g,'')+'-'+String(m.id).replace(/-/g,'').slice(-6).toUpperCase();
+  const S={doc:"background:#fff;color:#1A1D21;font-family:'Noto Sans KR',sans-serif;border:1px solid #C7CED6;padding:26px 26px 22px;line-height:1.8;font-size:13px",
+    title:"text-align:center;font-size:18px;font-weight:700;margin:0 0 4px;letter-spacing:.06em",
+    stage:"text-align:center;font-size:11.5px;color:#6B7785;margin:0 0 16px",
+    meta:"display:block;font-size:11px;color:#6B7785;border-bottom:2px solid #1F3A5F;padding-bottom:10px;margin-bottom:16px",
+    recv:"font-size:14.5px;font-weight:700;margin:0 0 14px",
+    th:"border:1px solid #D7DCE2;padding:7px 10px;text-align:left;background:#F7F8FA;color:#6B7785;font-weight:700;width:36%;white-space:nowrap;font-size:12px",
+    td:"border:1px solid #D7DCE2;padding:7px 10px;text-align:left;font-size:12.5px",
+    hl:"border:1px solid #D7DCE2;padding:7px 10px;text-align:left;color:#B4433C;font-weight:700;font-size:12.5px",
+    warn:"background:#F4F7FA;border:1px solid #CCD7E4;border-left:3px solid #1F3A5F;border-radius:4px;padding:10px 12px;font-size:12px;color:#2B4766;margin:0 0 14px;line-height:1.75",
+    adj:"background:#F7F8FA;border:1px solid #DDE1E6;border-radius:4px;padding:9px 12px;font-size:12px;color:#44505E;margin:0 0 14px;line-height:1.7",
+    stamp:"text-align:center;margin-top:20px;border-top:1px solid #D7DCE2;padding-top:14px",
+    date2:"font-size:12px;color:#6B7785;margin-bottom:6px",
+    co:"font-size:15px;font-weight:700;letter-spacing:.08em",
+    dates:"background:#F0F2F5;border:1px solid #DDE1E6;border-radius:3px;padding:3px 8px;font-size:12px;display:inline-block;margin:0 5px 5px 0"};
+  const meta=`<span style="${S.meta}">문서번호 ${docNo} &nbsp;&nbsp; 발송일자 ${today()}</span>`;
+  const recv=`<p style="${S.recv}">${escH(m.name)} 귀하</p>`;
+  const u1Row=pr.u1?`<tr><th style="${S.th}">대상 연차</th><td style="${S.td}">${pr.part==='A'?'입사 후 9개월간 발생분 (선발생)':'입사 10~11개월 차 발생분 (후발생)'}</td></tr>`:'';
+  const table=`<table style="width:100%;border-collapse:collapse;margin:8px 0 14px">
+    <tr><th style="${S.th}">연차 산정기간</th><td style="${S.td}">${m.cur.start} ~ ${m.cur.end}</td></tr>${u1Row}
+    <tr><th style="${S.th}">발생 연차</th><td style="${S.td}">${lvF1(m.cur.acc)}일</td></tr>
+    <tr><th style="${S.th}">사용 연차</th><td style="${S.td}">${lvF1(m.cur.use)}일</td></tr>
+    <tr><th style="${S.th}">미사용 잔여</th><td style="${S.hl}">${lvF1(remain)}일</td></tr>
+    <tr><th style="${S.th}">소멸 예정일</th><td style="${S.hl}">${m.cur.expire} (D-${dd})</td></tr></table>`;
+  /* 법정 서면이므로 팀명(GA)이 아니라 법인명으로 발송 명의를 표기한다.
+     ⚠️ **대상자(m)의 소속 법인** — 서면을 만드는 승인자의 법인이 아니다. */
+  const coName=coNameOfMember(m);
+  const stamp=`<div style="${S.stamp}"><div style="${S.date2}">${today().replace(/-/g,'. ')} 발송</div><span style="${S.co}">${escH(coName)}</span></div>`;
+  const adjNote=m.adj>0?`<div style="${S.adj}">별도로 부여된 조정 연차 <b>${lvF1(m.adj)}일</b>이 있습니다. 위 표의 법정 연차 통계에는 포함되지 않으나, 연차 산정기간이 종료되면 함께 소멸합니다.</div>`:'';
+  let title,stageTxt,bodyHtml;
+  if(pr.stage==='1'){
+    title='연차휴가 사용촉진 안내 (1차)';
+    stageTxt=pr.u1?'근로기준법 제61조제2항 · 1년 미만 근로자 연차사용촉진':'근로기준법 제61조 · 미사용 연차휴가일수 통지 및 사용시기 지정 요청';
+    const warn=pr.u1
+      ?`본 안내는 <b>${pr.part==='A'?'먼저 발생한 연차 9일분(입사 1~9개월 발생)':'나중에 발생한 연차 2일분(입사 10~11개월 차 발생)'}</b>에 대한 것입니다. 기한 내 사용 시기를 통보하지 않으실 경우 ${pr.part==='A'?'최초 1년이 종료되기 1개월 전까지':'최초 1년 종료 10일 전까지'} 회사가 사용 시기를 지정하여 다시 통보합니다.${pr.part==='A'?' 입사 10~11개월 차에 발생하는 연차 2일분은 1년 종료 1개월 전에 별도로 안내합니다.':''} 촉진 절차 이후에도 사용하지 않은 연차에 대해서는 「근로기준법」에 따라 미사용수당이 지급되지 않습니다.`
+      :`기한 내 연차가 소진되지 않을 경우 「근로기준법」 제61조에 따라 회사가 잔여 연차의 사용 시기를 지정하여 다시 통보할 수 있습니다. 지정된 시기에도 사용하지 않은 연차에 대해서는 미사용수당이 지급되지 않습니다.`;
+    bodyHtml=`<p style="margin:0 0 12px">「근로기준법」 제61조에 따라 미사용 연차휴가 일수를 아래와 같이 통지하며, 사용 시기를 지정하여 회신해 주시기 바랍니다.</p>
+      ${table}${adjNote}
+      <p style="margin:0 0 12px">잔여 연차의 사용 시기를 정하시어 기한 내 소진해 주시기 바랍니다.</p>
+      <div style="${S.warn}">${warn}</div>`;
+  }else{
+    title='연차휴가 사용시기 지정 통보 (2차)';
+    stageTxt=pr.u1?'근로기준법 제61조제2항 · 1년 미만 근로자 사용시기 지정':'근로기준법 제61조 · 미사용 연차휴가 사용시기 지정 통보';
+    const days=(dates&&dates.length)?dates:lvAutoDates(remain);
+    const shown=days.map(x=>`<span style="${S.dates}">${escH(x)}</span>`).join(' ');
+    bodyHtml=`<p style="margin:0 0 12px">1차 촉진 안내에 대한 사용 시기 회신이 확인되지 않아, 「근로기준법」 제61조에 따라 회사가 ${escH(m.name)}님의 미사용 연차 사용일을 아래와 같이 지정하여 통보합니다.</p>
+      ${table}${adjNote}
+      <p style="margin:2px 0 6px"><b>회사 지정 사용일</b> (총 ${lvF1(remain)}일)</p>
+      <p style="margin:0 0 8px;font-size:11.5px;color:#6B7785">지정일에 사용하시는 경우와 다른 일자를 희망하시는 경우 모두 휴가 신청을 진행해 주시기 바랍니다.</p>
+      <div style="margin:2px 0 14px">${shown}</div>
+      <div style="${S.warn}">지정일 변경이 필요하신 경우 GA 총무 담당자와 협의해 주시기 바랍니다. 지정된 시기에도 사용하지 않은 연차에 대해서는 「근로기준법」에 따라 미사용수당이 지급되지 않습니다. 잔여 연차 사용 시 휴가 신청은 필수입니다.</div>`;
+  }
+  const html=`<div style="${S.doc}"><h1 style="${S.title}">${title}</h1><div style="${S.stage}">${stageTxt}</div>${meta}${recv}${bodyHtml}${stamp}</div>`;
+  /* 메일 제목도 대상자 법인 기준 (WA 대상자에게 '빌리지베이비' 명의로 나가면 안 됨) */
+  return {html,docNo,subject:`[${coShort(coName)} GA] 연차사용촉진 ${pr.stage==='2'?'2차':'1차'} 서면통보${pr.u1?' (1년 미만)':''} — ${m.name}님`};
+}
+
+/* ---- 미리보기 (HR lvOpenNotice 구조 유지) ---- */
+let LV_NOTICE=null;
+function lvOpenNotice(id){
+  const m=LV.members.find(x=>String(x.id)===String(id));
+  if(!m||!m.promo){toast('촉진 대상이 아닙니다.','err');return;}
+  const remain=Math.max(m.cur.acc-m.cur.use,0);
+  const editDates=m.promo.stage==='2'?lvAutoDates(remain):null;
+  LV_NOTICE={m,editDates};
+  const doc=lvDoc(m,editDates);
+  const lg=lvLast(m);
+  modal('서면통보 미리보기 · '+m.name+' ('+(m.promo.stage==='2'?'2차':'1차')+' 촉진)','wide',`
+    <div class="lvwrap">
+    <div class="lvrecv"><span class="rl">받는 사람</span><b>${escH(m.name)}</b><span class="em">${escH(m.email)}</span>
+      <span class="via">${lg?`최근 발송 ${escH(lg.sentAt)} · 수신 ${lg.readAt?'확인':'미확인'}`:'등록 이메일'}</span></div>
+    <div id="lvDateEd"></div>
+    <div id="lvNoticeDoc">${doc.html}</div>
+    <div class="info" style="margin-top:10px">
+      <b>발송 기능 연결 예정</b> — 현재는 서면 내용 확인까지만 제공합니다.
+      메일 발송과 발송 이력 기록은 Edge Function 연동 후 활성화됩니다.
+    </div>
+    </div>
+  `,[['닫기','btn-ghost',closeModal]]);
+  lvRenderDateEd();
+}
+/* TODO(발송 연동): Edge Function(send-leave-notice 상당) 배포 후
+   아래 payload 로 호출하고, 성공 시 ga_notice_record(service_role) 로 이력을 적재한다.
+   payload = {empId, toEmail, empName, stage, u1, u1Part, expire, period, remain, docNo, subject, docHtml}
+   발송 버튼은 이 함수가 준비된 뒤 lvOpenNotice 의 푸터에 추가한다. */
+function lvRenderDateEd(){
+  const box=document.getElementById('lvDateEd');
+  if(!box||!LV_NOTICE||!LV_NOTICE.editDates){if(box)box.innerHTML='';return;}
+  const m=LV_NOTICE.m,need=Math.max(1,Math.floor(Math.max(m.cur.acc-m.cur.use,0)));
+  const ds=LV_NOTICE.editDates;
+  box.innerHTML=`<div class="lvdedit">
+    <div class="tt">회사 지정 사용일 — 직접 지정할 수 있습니다</div>
+    <div class="chips">${ds.map((d,i)=>`<span class="chip">${escH(d)}<button type="button" onclick="lvRmDate(${i})" aria-label="삭제">×</button></span>`).join('')||'<span class="hint">지정된 날짜가 없습니다</span>'}</div>
+    <div class="addrow">
+      <input type="date" id="lvNewDate">
+      <button class="btn btn-secondary btn-sm" type="button" onclick="lvAddDate()">+ 날짜 추가</button>
+      <span>${ds.length}일 지정 / 필요 ${need}일 ${ds.length>=need?'':'<span class="warn">— 부족</span>'}</span>
+    </div></div>`;
+}
+function lvRefreshNoticeDoc(){
+  if(!LV_NOTICE)return;
+  const el=document.getElementById('lvNoticeDoc');
+  if(el)el.innerHTML=lvDoc(LV_NOTICE.m,LV_NOTICE.editDates).html;
+  lvRenderDateEd();
+}
+function lvAddDate(){
+  const v=(document.getElementById('lvNewDate')||{}).value;
+  if(!v){toast('날짜를 먼저 선택해 주세요.','err');return;}
+  if(LV_NOTICE.editDates.indexOf(v)>=0){toast('이미 지정된 날짜입니다.','err');return;}
+  LV_NOTICE.editDates.push(v);LV_NOTICE.editDates.sort();lvRefreshNoticeDoc();
+}
+function lvRmDate(i){LV_NOTICE.editDates.splice(i,1);lvRefreshNoticeDoc();}
+/* ---- 발송 이력 CSV (HR lvExportNotices) ---- */
+function lvExportNotices(){
+  const ns=(LV.data&&LV.data.notices)||[];
+  if(!ns.length){toast('발송 이력이 없습니다.','err');return;}
+  const nameOf=id=>{const m=LV.members.find(x=>String(x.id)===String(id));return m||{};};
+  const rows=[['발송일시','이름','부서','직무','이메일','촉진단계','구분','소멸예정일','문서번호','수신확인','수신일시','발송자']];
+  ns.forEach(n=>{const m=nameOf(n.empId);
+    rows.push([n.sentAt,m.name||'',m.dept||'',m.job||'',n.toEmail,(n.stage==='2'?'2차':'1차'),
+      n.u1?('1년 미만'+(n.u1Part==='A'?' 선발생분':n.u1Part==='B'?' 후발생분':'')):'일반',
+      n.expire,n.docNo,n.readAt?'확인':'미확인',n.readAt||'-',n.sentBy||'']);});
+  lvCsvDl('GA_연차촉진_발송이력_'+today()+'.csv',rows);
+  toast('발송 이력 '+ns.length+'건을 CSV로 내보냈습니다.','ok');
+}
+
+/* ===================== 공통 컴포넌트 (HR 패턴) ===================== */
+function modal(title,cls,body,foot){
+  closeModal();
+  const ov=document.createElement('div');ov.className='overlay';ov.onclick=e=>{if(e.target===ov)closeModal();};
+  ov.innerHTML=`<div class="modal ${cls||''}">
+    <div class="modal-head"><h3>${escH(title)}</h3><button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-body">${body}</div>
+    <div class="modal-foot"></div>
+  </div>`;
+  document.body.appendChild(ov);
+  const ff=ov.querySelector('.modal-foot');
+  (foot||[]).forEach(([label,cl,fn])=>{const b=document.createElement('button');b.className='btn '+cl;b.textContent=label;b.onclick=fn;ff.appendChild(b);});
+  if(!foot||!foot.length)ff.style.display='none';
+  window._ov=ov;return ov;
+}
+function closeModal(){if(window._ov){window._ov.remove();window._ov=null;}}
+function toast(msg,type){
+  const t=document.createElement('div');t.className='toast '+(type||'');
+  t.textContent=String(msg==null?'':msg);
+  document.body.appendChild(t);setTimeout(()=>t.remove(),3600);
+}
+/* 한글 IME 안전 검색 바인딩 — 조합 중에는 콜백을 내보내지 않고, 입력 요소는 다시 그리지 않는다 */
+function bindSearch(id,cb){
+  const el=document.getElementById(id);if(!el)return;
+  let composing=false,timer=null;
+  const fire=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(!composing)cb(el.value);},200);};
+  el.addEventListener('compositionstart',()=>{composing=true;});
+  el.addEventListener('compositionend',()=>{composing=false;fire();});
+  el.addEventListener('input',()=>{if(!composing)fire();});
+}
+
+/* ===================== 로그인 (이메일 OTP · HR 패턴) ===================== */
+function renderLogin(msg){
+  const lay=document.getElementById('layout');if(lay)lay.style.display='none';
+  const old=document.getElementById('loginScreen');if(old)old.remove();
+  const wrap=document.createElement('div');wrap.id='loginScreen';wrap.className='login-screen';
+  wrap.innerHTML=`
+    <div class="login-card">
+      <div class="login-brand"><div class="org">VILLAGEBABY · GA</div><div class="nm">GA 휴가 결재 시스템</div></div>
+      <p class="login-desc">@villagebaby.kr 이메일로 로그인 코드를 받아 입력하세요.<br>별도 가입은 필요 없습니다.</p>
+      <div id="loginStep1">
+        <div class="form-row"><label>회사 이메일</label>
+          <div class="email-row">
+            <input id="liEmail" autocomplete="username" placeholder="아이디 입력 (예: hs.kim)" onkeydown="if(event.key==='Enter')sendCode()">
+            <span class="email-suffix">@villagebaby.kr</span>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block" id="liBtn" onclick="sendCode()">인증코드 받기</button>
+      </div>
+      <div id="loginStep2" style="display:none">
+        <div class="form-row"><label>인증코드 <span class="hint" id="liSent" style="display:inline"></span></label>
+          <input class="input" id="liCode" inputmode="numeric" placeholder="메일로 받은 코드" onkeydown="if(event.key==='Enter')verifyCode()"></div>
+        <button class="btn btn-primary btn-block" id="liVerify" onclick="verifyCode()">로그인</button>
+        <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="backToEmail()">이메일 다시 입력</button>
+      </div>
+      <div class="login-msg" id="liMsg"></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  if(msg)liMsg(msg,'err');
+  const f=document.getElementById('liEmail');if(f)f.focus();
+}
+function liMsg(t,type){const el=document.getElementById('liMsg');if(el){el.textContent=t;el.className='login-msg '+(type||'');}}
+function setBusy(id,b){const el=document.getElementById(id);if(!el)return;el.disabled=b;if(b){el.dataset.t=el.textContent;el.textContent='처리 중…';}else if(el.dataset.t){el.textContent=el.dataset.t;}}
+function sendCode(){
+  let email=document.getElementById('liEmail').value.trim().toLowerCase();
+  if(!email){liMsg('아이디를 입력해 주세요.','err');return;}
+  if(email.indexOf('@')<0)email=email+'@villagebaby.kr';   // 도메인 자동 보완
+  if(!/@villagebaby\.kr$/.test(email)){liMsg('@villagebaby.kr 이메일만 사용할 수 있습니다.','err');return;}
+  window._liEmail=email;
+  setBusy('liBtn',true);
+  sb.auth.signInWithOtp({email:email,options:{shouldCreateUser:true}}).then(function(res){
+    setBusy('liBtn',false);
+    if(res.error){
+      liMsg(/rate|too many/i.test(res.error.message||'')?'요청이 많습니다. 60초 뒤 다시 시도해 주세요.':'코드 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.','err');
+      return;
+    }
+    document.getElementById('loginStep1').style.display='none';
+    document.getElementById('loginStep2').style.display='';
+    document.getElementById('liSent').textContent=email;
+    liMsg('인증코드를 메일로 보냈습니다. (10분 내 입력)','ok');
+    document.getElementById('liCode').focus();
+  }).catch(function(){setBusy('liBtn',false);liMsg('네트워크 오류. 다시 시도하세요.','err');});
+}
+function verifyCode(){
+  const code=document.getElementById('liCode').value.trim();
+  if(!code){liMsg('코드를 입력해 주세요.','err');return;}
+  setBusy('liVerify',true);
+  sb.auth.verifyOtp({email:window._liEmail,token:code,type:'email'}).then(function(res){
+    if(res.error){setBusy('liVerify',false);liMsg('코드가 올바르지 않거나 만료됐습니다.','err');return;}
+    return rpc('ga_me').then(function(me){
+      if(!me||me.needLogin){
+        return sb.auth.signOut().then(function(){
+          setBusy('liVerify',false);
+          liMsg('GA 휴가 시스템 사용 대상이 아닙니다. GA 총무 담당자에게 문의해 주세요.','err');
+        });
+      }
+      return enter();
+    });
+  }).catch(function(e){setBusy('liVerify',false);liMsg((e&&e.message)||'로그인에 실패했습니다.','err');});
+}
+function backToEmail(){document.getElementById('loginStep1').style.display='';document.getElementById('loginStep2').style.display='none';liMsg('');}
+function logout(){
+  if(!confirm('로그아웃하시겠습니까?'))return;
+  sb.auth.signOut().then(function(){location.reload();}).catch(function(){location.reload();});
+}
+
+/* ===================== 진입 ===================== */
+function enter(){
+  return loadCfg().then(()=>loadMy()).then(()=>{
+    const ls=document.getElementById('loginScreen');if(ls)ls.remove();
+    document.getElementById('layout').style.display='';
+    document.getElementById('meNm').textContent=ST.me.name||'사용자';
+    document.getElementById('meRl').textContent=
+      ST.me.role==='exec'?'대표':ST.me.role==='center'?'센터장':(ST.me.jobTitle||'GA');
+    if(ST.me.canViewAll===true)return loadAdmin().then(()=>{buildNav();go('home');});
+    buildNav();go('home');
+  });
+}
+function boot(){
+  sb.auth.getSession().then(function(res){
+    if(res.data&&res.data.session){
+      rpc('ga_me').then(function(me){
+        if(!me||me.needLogin){
+          return sb.auth.signOut().then(function(){renderLogin('GA 휴가 시스템 사용 대상이 아닙니다. GA 총무 담당자에게 문의해 주세요.');});
+        }
+        return enter();
+      }).catch(function(){renderLogin();});
+    }else renderLogin();
+  }).catch(function(){renderLogin();});
+}
+boot();
+</script>
+</body>
+</html>
