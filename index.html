@@ -19,6 +19,8 @@
   --st-appr:#1E7B4D;   /* 최종 승인 */
   --st-rej:#B4433C;    /* 반려 */
   --st-wd:#9AA0A6;     /* 철회 */
+  --warn:#8A5A00;      /* 미리보기 경고 */
+  --warn-bg:#FFF4DC; --warn-line:#E8C87A; --warn-str:#B37400;
   --r:6px; --r-lg:8px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -92,6 +94,18 @@ select.input{appearance:none;background-image:url("data:image/svg+xml;utf8,<svg 
 .nav-t{background:none;border:0;border-bottom:2px solid transparent;padding:12px 12px 10px;font-size:13.5px;font-weight:500;color:var(--sub);cursor:pointer;white-space:nowrap}
 .nav-t:hover{color:var(--ink)}
 .nav-t.on{color:var(--navy);font-weight:700;border-bottom-color:var(--navy)}
+/* 직원 화면 미리보기 — 읽기 전용 */
+.pv-pick{margin-left:auto;display:flex;align-items:center;gap:6px;padding:6px 0 5px;white-space:nowrap}
+.pv-pick label{font-size:11.5px;color:var(--sub);font-weight:500}
+.pv-pick select{border:1px solid var(--line);border-radius:var(--r);background:#fff;color:var(--ink);font-family:inherit;font-size:12.5px;padding:5px 8px;max-width:220px;cursor:pointer}
+.pv-pick select.on{border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn);font-weight:700}
+.pv-bar{position:sticky;top:0;z-index:60;background:var(--warn-bg);border-bottom:2px solid var(--warn-str);color:var(--warn)}
+.pv-bar-in{max-width:1080px;margin:0 auto;padding:9px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;line-height:1.5}
+.pv-bar .tag{background:var(--warn-str);color:#fff;border-radius:3px;padding:2px 7px;font-size:11px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
+.pv-bar b{font-weight:700}
+.pv-bar .ro{font-size:12px;opacity:.85}
+.pv-bar .back{margin-left:auto;background:#fff;border:1px solid var(--warn-str);color:var(--warn);border-radius:var(--r);padding:5px 11px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pv-bar .back:hover{background:var(--warn-str);color:#fff}
 .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 56px}
 .page-h{margin-bottom:16px}
 .page-h h2{font-size:19px;color:var(--ink)}
@@ -233,6 +247,10 @@ tr.sp-row td:first-child{box-shadow:inset 3px 0 0 var(--st-rej)}
   .topbar-in{padding:11px 12px}
   .topbar .nm{font-size:14.5px}
   .modal-body{padding:14px}
+  .pv-pick label{display:none}
+  .pv-pick select{max-width:148px}
+  .pv-bar-in{padding:9px 12px;font-size:12.5px}
+  .pv-bar .back{margin-left:0}
 }
 
 /* ===================== 인쇄 (결재문서만) ===================== */
@@ -264,6 +282,7 @@ tr.sp-row td:first-child{box-shadow:inset 3px 0 0 var(--st-rej)}
     </div>
   </header>
   <nav class="navbar"><div class="navbar-in" id="navBar"></div></nav>
+  <div id="pvBar"></div>
   <main class="wrap" id="content"></main>
 </div>
 
@@ -516,7 +535,10 @@ function lvAutoDates(remain){
 const ST={
   me:null, cfg:{}, types:[], typeById:{}, typeByCode:{},
   my:{requests:[],adjustments:[],notices:[],approvals:[]},
-  admin:null, page:'home'
+  admin:null, page:'home',
+  /* 직원 화면 미리보기 — 보고 있는 직원의 emp id (없으면 내 화면).
+     ⚠️ ST.me 는 절대 덮어쓰지 않는다. 권한 판정은 언제나 실제 로그인 사용자 기준. */
+  preview:null
 };
 function cfg(k,d){const v=ST.cfg[k];return (v===undefined||v===null||v==='')?d:v;}
 function typeOf(r){return ST.typeById[r.typeId]||{name:'-',deductible:false,units:'종일',needsProof:false};}
@@ -637,6 +659,100 @@ function empName(id){
 function isSubject(){return !(ST.me&&ST.me.isLeaveSubject===false);}
 function isApprover(){return !(ST.me&&ST.me.isApprover===false);}
 function empIsSubject(e){return !(e&&e.isLeaveSubject===false);}
+function canViewAll(){return !!(ST.me&&ST.me.canViewAll===true);}
+
+/* ===================== 직원 화면 미리보기 (읽기 전용) =====================
+   관리자가 "일반 직원에게 이 화면이 어떻게 보이는가"를 확인하기 위한 기능이다.
+     · ST.me 를 건드리지 않는다 — 권한(canViewAll·isApprover)은 실제 로그인 사용자 기준 그대로.
+     · 새 RPC 를 부르지 않는다 — 이미 받아둔 ST.admin 에서 클라이언트가 조립한다.
+       (ga_my_data() 를 남의 것으로 부를 방법은 없고, 있어서도 안 된다.)
+     · 쓰기(상신·철회·결재·조정·보관)는 전부 pvGuard() 로 막는다. 버튼도 내보내지 않는다. */
+function previewEmp(){
+  if(!ST.preview||!ST.admin)return null;
+  const e=(ST.admin.employees||[]).find(x=>String(x.id)===String(ST.preview));
+  return (e&&empIsSubject(e))?e:null;
+}
+function isPreview(){return !!previewEmp();}
+/* 쓰기 함수 선두 가드 — true 면 호출자는 즉시 return 한다 */
+function pvGuard(){
+  if(!isPreview())return false;
+  toast('미리보기 중에는 사용할 수 없습니다.','err');
+  return true;
+}
+/* 지금 화면에 보여줄 사람 — 미리보기면 그 직원, 아니면 나.
+   ST.me 와 같은 모양으로 맞춰서 홈·신청 폼·내 결재함·내 연차가 그대로 쓰게 한다. */
+function viewAs(){
+  const e=previewEmp();
+  if(!e)return ST.me;
+  return {
+    id:e.id, name:e.name, email:e.email, dept:e.dept||'',
+    jobTitle:e.jobTitle||'', joinDate:e.joinDate,
+    status:e.status, active:e.active, leaveDate:e.leaveDate||'',
+    company:{code:e.companyCode||'',name:e.companyName||''},
+    isLeaveSubject:e.isLeaveSubject,
+    /* 아래 둘은 개인 속성이 아니라 시스템 설정·결재선이므로 로그인 사용자 값을 그대로 쓴다 */
+    showBalanceOnHome:!!(ST.me&&ST.me.showBalanceOnHome===true),
+    approvers:(ST.me&&ST.me.approvers)||[],
+    /* 권한 플래그는 의도적으로 내려보내지 않는다 — 권한은 ST.me 로만 판정한다 */
+    preview:true
+  };
+}
+/* 보여줄 사람의 "내 데이터" — 미리보기면 ST.admin 에서 추려 ST.my 모양으로 만든다 */
+function viewMy(){
+  const e=previewEmp();
+  if(!e)return ST.my;
+  const pid=String(e.id), A=ST.admin||{};
+  const requests=(A.requests||[]).filter(r=>String(r.empId)===pid)
+    .slice().sort((a,b)=>String(b.submittedAt||'').localeCompare(String(a.submittedAt||'')));
+  const ids={};requests.forEach(r=>{ids[String(r.id)]=1;});
+  return {
+    requests:requests,
+    approvals:(A.approvals||[]).filter(a=>ids[String(a.requestId)]),
+    adjustments:(A.adjustments||[]).filter(a=>String(a.empId)===pid),
+    notices:(A.notices||[]).filter(n=>String(n.empId)===pid)
+  };
+}
+/* 본인 휴가 화면(신청·내 결재함·내 연차)을 띄울지 — 미리보기 중에는 대상 직원 기준 */
+function viewIsSubject(){
+  const e=previewEmp();
+  return e?empIsSubject(e):isSubject();
+}
+/* 미리보기 대상 목록 — 운영자(viewer) 제외, 입사 최근순 */
+function previewPool(){
+  if(!canViewAll()||!ST.admin)return [];
+  return (ST.admin.employees||[]).filter(empIsSubject).slice().sort(byJoinDesc);
+}
+function pvPickHtml(){
+  const pool=previewPool();
+  if(!pool.length)return '';
+  const on=isPreview();
+  const opts=['<option value="">— 내 화면 —</option>'].concat(pool.map(e=>
+    `<option value="${escH(e.id)}"${String(ST.preview)===String(e.id)?' selected':''}>${escH(e.name)}${e.jobTitle?' ('+escH(e.jobTitle)+')':''}</option>`
+  )).join('');
+  return `<div class="pv-pick"><label for="pvSel">직원 화면 미리보기</label>
+    <select id="pvSel" class="${on?'on':''}" onchange="setPreview(this.value)">${opts}</select></div>`;
+}
+function renderPvBar(){
+  const box=document.getElementById('pvBar');if(!box)return;
+  const e=previewEmp();
+  if(!e){box.innerHTML='';box.className='';return;}
+  box.className='pv-bar';
+  box.innerHTML=`<div class="pv-bar-in">
+    <span class="tag">미리보기</span>
+    <span><b>${escH(e.name)}</b>님 화면을 미리보기 중입니다 <span class="ro">· 읽기 전용 — 상신·철회·결재가 되지 않습니다</span></span>
+    <button type="button" class="back" onclick="exitPreview()">내 화면으로 돌아가기</button>
+  </div>`;
+}
+function setPreview(v){
+  if(!canViewAll()){ST.preview=null;return;}
+  const id=String(v||'');
+  ST.preview=id||null;
+  if(id&&!previewEmp()){ST.preview=null;toast('해당 직원의 화면을 열 수 없습니다.','err');}
+  renderPvBar();
+  go('home');          /* buildNav 는 go() 안에서 다시 돈다 */
+  window.scrollTo(0,0);
+}
+function exitPreview(){setPreview('');}
 
 /* ===================== 네비게이션 ===================== */
 /* subject:true = GA 연차 산정 대상자에게만 의미 있는 화면 (본인 휴가 기능) */
@@ -651,22 +767,23 @@ const PAGES={
 };
 function canSee(k){
   const p=PAGES[k];if(!p)return false;
-  if(p.admin&&!(ST.me&&ST.me.canViewAll===true))return false;
-  if(p.subject&&!isSubject())return false;   /* 운영자 계정은 본인 휴가 기능 자체가 없다 */
+  /* 승인자 화면은 실제 로그인 사용자 권한으로만 판정한다. 미리보기 중에는 '직원 화면'이므로 감춘다 */
+  if(p.admin&&(!canViewAll()||isPreview()))return false;
+  if(p.subject&&!viewIsSubject())return false;   /* 운영자 계정은 본인 휴가 기능 자체가 없다 */
   return true;
 }
 function buildNav(){
   const nav=document.getElementById('navBar');
   nav.innerHTML=Object.keys(PAGES).filter(canSee).map(k=>
     `<button class="nav-t${ST.page===k?' on':''}" data-k="${k}" onclick="go('${k}')">${escH(PAGES[k].t)}</button>`
-  ).join('');
+  ).join('')+pvPickHtml();
 }
 function go(k){
   if(!PAGES[k]||!canSee(k))k='home';
   ST.page=k;buildNav();
   const p=PAGES[k];
   /* 운영자(viewer)는 본인 신청이 없으므로 홈 부제를 조회 관점으로 바꾼다 */
-  const desc=(k==='home'&&!isSubject())?'GA 구성원의 결재 문서와 연차 현황을 조회합니다.':p.d;
+  const desc=(k==='home'&&!viewIsSubject())?'GA 구성원의 결재 문서와 연차 현황을 조회합니다.':p.d;
   document.getElementById('content').innerHTML=
     `<div class="page-h"><h2>${escH(p.t)}</h2><p>${escH(desc)}</p></div><div id="pg"><div class="card card-pad hint">불러오는 중…</div></div>`;
   window.scrollTo(0,0);
@@ -677,7 +794,7 @@ function pg(html){const el=document.getElementById('pg');if(el)el.innerHTML=html
 /* ===================== 홈 ===================== */
 function renderHome(){
   /* 운영자(viewer) — GA 연차 산정 대상이 아니므로 본인 신청 현황을 띄우지 않는다 */
-  if(!isSubject()){
+  if(!viewIsSubject()){
     pg(`
     <div class="card card-pad">
       <div class="info">이 계정은 <b>GA 연차 산정 대상이 아닙니다.</b>
@@ -689,18 +806,19 @@ function renderHome(){
     </div>`);
     return;
   }
-  const rs=ST.my.requests;
+  const v=viewAs();
+  const rs=viewMy().requests;
   const c={submitted:0,center_approved:0,approved:0,rejected:0};
   rs.forEach(r=>{if(c[r.status]!==undefined)c[r.status]++;});
   const recent=rs.slice(0,5);
 
   /* ⚠️ 잔여 연차는 기본적으로 홈에 노출하지 않는다 (ga_config SHOW_BALANCE_ON_HOME) */
   let balCard='';
-  if(ST.me&&ST.me.showBalanceOnHome===true){
+  if(v&&v.showBalanceOnHome===true){
     const b=myBalance();
     balCard=`<div class="card card-pad"><div class="bal-box">
       <span class="hint">잔여 연차</span><span class="big">${lvF1(b.remain)}</span><span class="hint">일</span>
-      <span class="hint" style="margin-left:auto">산정기간 ${escH(grantPeriod(ST.me.joinDate))} · 발생 ${lvF1(b.acc)}일 · 사용 ${lvF1(b.use)}일</span>
+      <span class="hint" style="margin-left:auto">산정기간 ${escH(grantPeriod(v.joinDate))} · 발생 ${lvF1(b.acc)}일 · 사용 ${lvF1(b.use)}일</span>
     </div></div>`;
   }
 
@@ -732,14 +850,19 @@ function myBalance(){
 }
 /* 내 연차 모델 — admin 과 같은 lvBuild 로직을 1인 데이터로 돌린다 */
 function buildMyMember(){
-  if(!ST.me)return null;
-  const usage=ST.my.requests.filter(r=>r.status==='approved'&&typeOf(r).deductible)
-    .map(r=>({empId:ST.me.id,dates:r.dates,typeName:typeOf(r).name}));
-  const adjust=ST.my.adjustments.map(a=>({empId:ST.me.id,days:a.days,at:a.at}));
+  const v=viewAs();
+  if(!v)return null;
+  const my=viewMy();
+  const usage=my.requests.filter(r=>r.status==='approved'&&typeOf(r).deductible)
+    .map(r=>({empId:v.id,dates:r.dates,typeName:typeOf(r).name}));
+  const adjust=my.adjustments.map(a=>({empId:v.id,days:a.days,at:a.at}));
+  /* 법인은 보여줄 사람 기준 — 미리보기면 그 직원의 소속 법인이다 (내 화면이면 myCo() 와 같다) */
+  const vco=(v.company&&v.company.name)?v.company:null;
   const save=LV.data;
-  lvBuild({employees:[{id:ST.me.id,name:ST.me.name,email:ST.me.email,dept:ST.me.dept,
-      jobTitle:ST.me.jobTitle,joinDate:ST.me.joinDate,status:'재직',active:true,leaveDate:'',
-      companyCode:(myCo()&&myCo().code)||'',companyName:(myCo()&&myCo().name)||''}],
+  lvBuild({employees:[{id:v.id,name:v.name,email:v.email,dept:v.dept,
+      jobTitle:v.jobTitle,joinDate:v.joinDate,
+      status:v.preview?v.status:'재직',active:v.preview?v.active:true,leaveDate:v.preview?(v.leaveDate||''):'',
+      companyCode:(vco&&vco.code)||'',companyName:(vco&&vco.name)||''}],
     usage,adjust,notices:[]});
   const m=LV.members[0]||null;
   LV.data=save;LV.members=[];  /* 승인자 화면 상태를 오염시키지 않는다 */
@@ -764,9 +887,14 @@ let APPLY={rows:[{date:'',unit:'종일'}]};
 function renderApply(){
   if(!ST.types.length){pg('<div class="card card-pad">휴가 종류를 불러오지 못했습니다.</div>');return;}
   APPLY={rows:[{date:'',unit:'종일'}]};
+  const pv=isPreview();
   const topts=ST.types.map((t,i)=>`<option value="${escH(t.code)}"${i===0?' selected':''}>${escH(t.name)}</option>`).join('');
   const aopts=approvers().map(a=>`<option value="${escH(a.email)}">${escH((a.name+' '+(a.jobTitle||'')).trim())}</option>`).join('');
   pg(`
+  ${pv?`<div class="card card-pad"><div class="notice" style="margin-bottom:0">
+    <b>미리보기 — 상신할 수 없습니다.</b> ${escH(viewAs().name)}님에게 신청 화면이 어떻게 보이는지 확인하는 중입니다.
+    폼은 그대로 열리지만 결재 상신 버튼은 제공되지 않으며, 입력한 내용은 저장되지 않습니다.
+  </div></div>`:''}
   <div class="card card-pad">
     <div class="sec">
       <div class="sec-t"><span class="no">1</span>휴가 종류</div>
@@ -844,9 +972,9 @@ function renderApply(){
 
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;flex-wrap:wrap">
       <button class="btn btn-ghost" type="button" onclick="renderApply()">초기화</button>
-      <button class="btn btn-primary" type="button" id="gaSubmit" disabled onclick="submitRequest()">결재 상신</button>
+      ${pv?'':'<button class="btn btn-primary" type="button" id="gaSubmit" disabled onclick="submitRequest()">결재 상신</button>'}
     </div>
-    <div class="hint" id="gaSubmitHint" style="text-align:right;margin-top:6px">사전 임원 협의 확인에 체크해야 상신할 수 있습니다.</div>
+    <div class="hint" id="gaSubmitHint" style="text-align:right;margin-top:6px">${pv?'미리보기 — 상신할 수 없습니다.':'사전 임원 협의 확인에 체크해야 상신할 수 있습니다.'}</div>
   </div>`);
   renderDateRows();onTypeChange();
 }
@@ -914,13 +1042,16 @@ function updateSpecial(picked,deduct){
     </div>`:'';
 }
 function updateSubmitState(){
+  const h=document.getElementById('gaSubmitHint');
+  /* 미리보기에서는 상신 버튼 자체가 없다 — 안내 문구만 유지한다 */
+  if(isPreview()){if(h)h.textContent='미리보기 — 상신할 수 없습니다.';return;}
   const ok=!!(document.getElementById('gaPreDone')||{}).checked;
   const btn=document.getElementById('gaSubmit');
   if(btn)btn.disabled=!ok;
-  const h=document.getElementById('gaSubmitHint');
   if(h)h.textContent=ok?'상신 후에는 1차 결재 전까지 철회할 수 있습니다.':'사전 임원 협의 확인에 체크해야 상신할 수 있습니다.';
 }
 function submitRequest(){
+  if(pvGuard())return;
   const t=curType();
   const dates=pickedDates();
   const reason=(document.getElementById('gaReason').value||'').trim();
@@ -962,7 +1093,8 @@ function submitRequest(){
 
 /* ===================== 내 결재함 ===================== */
 function renderMyBox(){
-  const rs=ST.my.requests;
+  const rs=viewMy().requests;
+  const pv=isPreview();   /* 미리보기에서는 철회 버튼을 아예 내보내지 않는다 */
   pg(`<div class="card">
     <div class="card-h"><h3>내 결재 문서</h3><span class="sub">총 ${rs.length}건</span></div>
     <div class="table-wrap"><table>
@@ -976,7 +1108,7 @@ function renderMyBox(){
           <td class="num">${r.deduct?lvF1(r.deduct):'—'}</td>
           <td>${stBadge(r.status)}</td>
           <td class="hint">${escH(prog)}</td>
-          <td style="text-align:right">${(r.status==='submitted'||r.status==='center_approved')
+          <td style="text-align:right">${(!pv&&(r.status==='submitted'||r.status==='center_approved'))
             ?`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation();withdraw('${r.id}','${escH(r.docNo)}')">철회</button>`:''}</td>
         </tr>`;}).join('')
         :'<tr><td colspan="7"><div class="empty">상신한 문서가 없습니다.</div></td></tr>'}</tbody>
@@ -994,6 +1126,7 @@ function progressText(r){
   return centerTitle()+(r.steps===1?' 결재 대기 (1단계 전결)':' 결재 대기 (총 2단계)');
 }
 function withdraw(id,docNo){
+  if(pvGuard())return;
   modal('결재 철회','',`<p style="font-size:13.5px;line-height:1.8">문서번호 <b>${escH(docNo)}</b> 를 철회합니다.<br>철회한 문서는 되돌릴 수 없으며, 필요 시 다시 상신해야 합니다.</p>`,
    [['닫기','btn-ghost',closeModal],['철회하기','btn-danger',function(){
      closeModal();
@@ -1006,12 +1139,14 @@ function withdraw(id,docNo){
 function renderMyLeave(){
   const m=buildMyMember();
   if(!m){pg('<div class="card card-pad">연차 정보를 계산할 수 없습니다. 입사일이 등록되어 있는지 확인해 주세요.</div>');return;}
-  const ns=ST.my.notices||[];
-  const adjs=ST.my.adjustments;
+  const v=viewAs();
+  const my=viewMy();
+  const ns=my.notices||[];
+  const adjs=my.adjustments||[];
   pg(`
   <div class="card">
     <div class="card-h"><h3>산정기간별 연차</h3>
-      <span class="sub">입사일 ${escH(ST.me.joinDate)} · 현재 산정기간 ${escH(grantPeriod(ST.me.joinDate))}</span></div>
+      <span class="sub">입사일 ${escH(v.joinDate)} · 현재 산정기간 ${escH(grantPeriod(v.joinDate))}</span></div>
     <div class="table-wrap"><table>
       <thead><tr><th>회차</th><th>산정기간</th><th>소멸 예정</th><th class="num">발생</th><th class="num">조정</th><th class="num">사용</th><th class="num">잔여</th><th>비고</th></tr></thead>
       <tbody>${m.periods.slice().reverse().map(p=>`
@@ -1093,6 +1228,7 @@ function inboxTable(title,rows,emptyMsg){
     </table></div></div>`;
 }
 function decide(id,action){
+  if(pvGuard())return;
   if(!isApprover()){toast('결재 권한이 없는 계정입니다.','err');return;}
   const r=findReq(id);if(!r)return;
   const isRej=(action==='reject');
@@ -1217,22 +1353,25 @@ function apprLogHtml(r){
 function openDoc(id){
   const r=findReq(id);
   if(!r){toast('문서를 찾을 수 없습니다.','err');return;}
-  const isAdmin=!!(ST.me&&ST.me.canViewAll===true);
+  const isAdmin=canViewAll();
   const canAct=isApprover();   /* viewer 는 조회만 — 결재·보관 버튼을 내보내지 않는다 */
+  /* 미리보기 중에는 쓰기 버튼을 하나도 내보내지 않는다 (철회·결재·보관 모두) */
+  const pv=isPreview();
   const foot=[['닫기','btn-ghost',closeModal],['인쇄 · PDF 저장','btn-secondary',function(){window.print();}]];
-  if(!isAdmin&&(r.status==='submitted'||r.status==='center_approved'))
+  if(!pv&&!isAdmin&&(r.status==='submitted'||r.status==='center_approved'))
     foot.push(['철회','btn-danger',function(){closeModal();withdraw(r.id,r.docNo);}]);
-  if(isAdmin&&canAct&&(r.status==='submitted'||r.status==='center_approved')){
+  if(!pv&&isAdmin&&canAct&&(r.status==='submitted'||r.status==='center_approved')){
     foot.push(['반려','btn-danger',function(){closeModal();decide(r.id,'reject');}]);
     foot.push(['승인','btn-approve',function(){closeModal();decide(r.id,'approve');}]);
   }
-  if(isAdmin&&canAct&&r.status==='approved'){
+  if(!pv&&isAdmin&&canAct&&r.status==='approved'){
     foot.push([r.finalDocAt?('보관 완료 ('+fmtDT(r.finalDocAt)+')'):'결재문서 보관',
       r.finalDocAt?'btn-ghost':'btn-primary',function(){saveFinalDoc(r.id);}]);
   }
   modal('결재 문서 · '+r.docNo,'wide',docSheetHtml(r)+apprLogHtml(r),foot);
 }
 function saveFinalDoc(id){
+  if(pvGuard())return;
   const el=document.getElementById('docSheet');
   if(!el){toast('결재문서 영역을 찾을 수 없습니다.','err');return;}
   const html=el.outerHTML;
@@ -1275,6 +1414,18 @@ function renderDash(){
   drawDashBody();
   bindSearch('dashQ',v=>{LV.q=v;drawDashBody();});
 }
+/* ---- 직원 정렬 기준 (한 곳에서만 정한다) ----
+   입사 최근순(joinDate desc). 같은 날짜면 이름 가나다순. 입사일이 비면 맨 뒤.
+   employees 행과 LV.members 모두 {joinDate,name} 를 가지므로 양쪽에 그대로 쓴다. */
+function byJoinDesc(a,b){
+  const ja=String((a&&a.joinDate)||''),jb=String((b&&b.joinDate)||'');
+  if(ja!==jb){
+    if(!ja)return 1;
+    if(!jb)return -1;
+    return ja<jb?1:-1;
+  }
+  return String((a&&a.name)||'').localeCompare(String((b&&b.name)||''),'ko');
+}
 function adminLvData(){
   const usage=(ST.admin.requests||[]).filter(r=>r.status==='approved'&&typeOf(r).deductible)
     .map(r=>({empId:r.empId,dates:r.dates,typeName:typeOf(r).name}));
@@ -1282,7 +1433,9 @@ function adminLvData(){
   /* GA 연차 산정 대상이 아닌 운영자(viewer)는 연차 현황·촉진 모집단에서 제외한다.
      — 본사 HR 이 연차를 관리하므로, 여기서 15일을 가진 것처럼 잡히면 안 된다.
      ⚠️ empName() 이 쓰는 ST.admin.employees 는 건드리지 않는다 (결재 문서의 이름 표기용). */
-  return {employees:(ST.admin.employees||[]).filter(empIsSubject),
+  /* 정렬은 여기 한 곳에서 — LV.members 가 이 순서를 그대로 이어받으므로
+     연차 현황·촉진 대상·조정 연차 대상자 셀렉트·CSV 가 모두 같은 순서가 된다. */
+  return {employees:(ST.admin.employees||[]).filter(empIsSubject).slice().sort(byJoinDesc),
           usage,adjust,notices:ST.admin.notices||[]};
 }
 function lvVisible(){
@@ -1290,7 +1443,7 @@ function lvVisible(){
   let ms=LV.members.slice();
   if(q)ms=ms.filter(m=>m.name.indexOf(q)>=0||String(m.email).indexOf(q)>=0);
   if(LV.promoOnly)ms=ms.filter(m=>m.promo);
-  return ms.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+  return ms.sort(byJoinDesc);
 }
 function drawDashBody(){
   const body=document.getElementById('dashBody');if(!body)return;
@@ -1314,6 +1467,7 @@ function drawDashBody(){
     :'<tr><td colspan="12"><div class="empty">조건에 맞는 직원이 없습니다.</div></td></tr>';
 }
 function openAdjust(){
+  if(pvGuard())return;
   /* 결재권이 없으면 조정 연차를 등록할 수 없다 (서버 ga_adjust 도 ga_is_approver 로 거부) */
   if(!isApprover()){toast('조정 연차 등록 권한이 없는 계정입니다.','err');return;}
   const opts=LV.members.map(m=>`<option value="${escH(m.id)}">${escH(m.name)} (${escH(m.cur.start)} ~ ${escH(m.cur.end)})</option>`).join('');
@@ -1643,6 +1797,7 @@ function enter(){
     document.getElementById('layout').style.display='';
     document.getElementById('meNm').textContent=ST.me.name||'사용자';
     document.getElementById('meRl').textContent=ST.me.jobTitle||'GA';
+    ST.preview=null;renderPvBar();   /* 로그인 직후는 언제나 내 화면 */
     if(ST.me.canViewAll===true)return loadAdmin().then(()=>{buildNav();go('home');});
     buildNav();go('home');
   });
