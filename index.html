@@ -19,8 +19,9 @@
   --st-appr:#1E7B4D;   /* 최종 승인 */
   --st-rej:#B4433C;    /* 반려 */
   --st-wd:#9AA0A6;     /* 철회 */
-  --warn:#8A5A00;      /* 미리보기 경고 */
+  --warn:#8A5A00;      /* 미리보기 경고 · 연차 조정 차감 */
   --warn-bg:#FFF4DC; --warn-line:#E8C87A; --warn-str:#B37400;
+  --ok:#1E7B4D;        /* 연차 조정 가산 (= --st-appr) */
   --r:6px; --r-lg:8px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,6 +125,9 @@ table td{border-bottom:1px solid #EEF0F3;padding:10px 12px;font-size:13px;vertic
 table tbody tr:last-child td{border-bottom:0}
 table tbody tr.clickable{cursor:pointer}
 table tbody tr.clickable:hover{background:#F8F9FB}
+/* 키보드로도 열 수 있는 행 (tabindex=0) — 포커스가 어디 있는지 보이게 한다 */
+table tbody tr.clickable:focus{outline:2px solid var(--navy-l);outline-offset:-2px}
+table tbody tr.clickable:focus:not(:focus-visible){outline:none}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 td.t-name{font-weight:700}
 .mono{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
@@ -177,6 +181,10 @@ tr.sp-row td:first-child{box-shadow:inset 3px 0 0 var(--st-rej)}
 .doc-sheet{background:#fff;border:1px solid #C7CED6;padding:26px 26px 22px}
 .doc-title{text-align:center;font-size:19px;font-weight:700;letter-spacing:.12em;margin:0 0 4px;color:var(--ink)}
 .doc-sub{text-align:center;font-size:11.5px;color:var(--sub);margin-bottom:16px;letter-spacing:.02em}
+/* 제목 자간 — '휴 가 신 청 서' 처럼 문자열에 공백을 넣지 않고 CSS 로만 벌린다
+   (결재란 직함과 같은 방식. 마지막 글자 뒤 자간은 음수 마진으로 상쇄) */
+.doc-title .ttl{letter-spacing:.3em;margin-right:-.3em}
+.doc-big{font-size:23px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.3}
 .appr-line{width:100%;border:1px solid #C7CED6;border-collapse:collapse;margin:0 0 18px;table-layout:fixed}
 .appr-line th{background:#F2F4F7;border:1px solid #C7CED6;padding:5px 4px;font-size:11px;text-align:center;color:var(--sub);font-weight:700}
 /* 결재란 직함은 자간을 넓혀 공문서처럼 보이게 한다. 문자열에 공백을 넣으면
@@ -213,6 +221,18 @@ tr.sp-row td:first-child{box-shadow:inset 3px 0 0 var(--st-rej)}
 .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--navy-d);color:#fff;padding:11px 18px;border-radius:var(--r);font-size:13px;z-index:1000;max-width:90vw;box-shadow:0 6px 24px rgba(0,0,0,.25)}
 .toast.err{background:var(--st-rej)}
 .toast.ok{background:var(--st-appr)}
+
+/* ===================== 연차 조정 알림 (로그인 직후) ===================== */
+.adj-alert .h{font-size:16px;font-weight:700;color:var(--navy);line-height:1.5}
+.adj-alert .s{font-size:12.5px;color:var(--sub);margin:4px 0 14px}
+.adj-it{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff;
+  border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;
+  cursor:pointer;font-family:inherit;font-size:13px;color:var(--ink);line-height:1.5}
+.adj-it:last-child{margin-bottom:0}
+.adj-it:hover{background:#F8F9FB;border-color:var(--navy-l)}
+.adj-it .d{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:52px}
+.adj-it .r{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.adj-it .t{font-size:11.5px;color:var(--sub);white-space:nowrap}
 
 /* ===================== 촉진 ===================== */
 .chip{display:inline-flex;align-items:center;gap:5px;background:#EEF1F5;border:1px solid var(--line);border-radius:3px;padding:3px 8px;font-size:12px;margin:0 5px 5px 0;font-variant-numeric:tabular-nums}
@@ -253,17 +273,17 @@ tr.sp-row td:first-child{box-shadow:inset 3px 0 0 var(--st-rej)}
   .pv-bar .back{margin-left:0}
 }
 
-/* ===================== 인쇄 (결재문서만) ===================== */
+/* ===================== 인쇄 (결재문서 · 연차 조정 내역서만) ===================== */
 @media print{
   @page{margin:14mm}
   body{background:#fff}
   body *{visibility:hidden!important}
-  #docSheet,#docSheet *{visibility:visible!important}
+  #docSheet,#docSheet *,#adjSheet,#adjSheet *{visibility:visible!important}
   .overlay{position:absolute!important;inset:auto!important;background:none!important;padding:0!important;display:block!important;overflow:visible!important}
   .modal{box-shadow:none!important;max-width:none!important;border-radius:0!important}
   .modal-head,.modal-foot,.no-print{display:none!important}
   .modal-body{max-height:none!important;overflow:visible!important;padding:0!important}
-  #docSheet{position:absolute;left:0;top:0;width:100%;border:0!important;padding:0!important}
+  #docSheet,#adjSheet{position:absolute;left:0;top:0;width:100%;border:0!important;padding:0!important}
 }
 </style>
 </head>
@@ -557,8 +577,11 @@ function normReq(r){return{
   submittedAt:r.submitted_at, decidedAt:r.decided_at};}
 function normAppr(a){return{id:a.id,requestId:a.request_id,step:Number(a.step||0),
   email:a.approver_email||'',action:a.action,comment:a.comment||'',actedAt:a.acted_at};}
-function normAdj(a){return{id:a.id,empId:a.emp_id,days:Number(a.days||0),period:a.period||'',
-  reason:a.reason||'',by:a.created_by||'',at:String(a.created_at||'').slice(0,10)};}
+/* created_by 는 이메일이다. by/createdBy 는 같은 값으로, 기존 화면(by)과
+   조정 상세(createdBy)가 둘 다 쓴다 — 한쪽을 지우면 다른 쪽이 조용히 빈칸이 된다. */
+function normAdj(a){const em=a.created_by||'';
+  return{id:a.id,empId:a.emp_id,days:Number(a.days||0),period:a.period||'',
+  reason:a.reason||'',by:em,createdBy:em,at:String(a.created_at||'').slice(0,10)};}
 function normNotice(n){return{id:n.id,empId:n.emp_id,stage:String(n.stage||''),u1:!!n.u1,u1Part:n.u1_part||'',
   docNo:n.doc_no||'',period:n.period||'',remain:Number(n.remain||0),expire:String(n.expire||'').slice(0,10),
   toEmail:n.to_email||'',subject:n.subject||'',sentBy:n.sent_by||'',
@@ -1165,11 +1188,11 @@ function renderMyLeave(){
   </div>
 
   <div class="card">
-    <div class="card-h"><h3>조정 연차</h3><span class="sub">회사가 별도로 가감한 일수</span></div>
+    <div class="card-h"><h3>조정 연차</h3><span class="sub">회사가 별도로 가감한 일수 · 행을 누르면 조정 내역서가 열립니다</span></div>
     <div class="table-wrap"><table>
       <thead><tr><th>등록일</th><th class="num">일수</th><th>산정기간</th><th>사유</th></tr></thead>
-      <tbody>${adjs.length?adjs.slice().reverse().map(a=>`<tr>
-        <td class="mono">${escH(a.at)}</td><td class="num">${lvAdjF(a.days)}</td>
+      <tbody>${adjs.length?adjs.slice().reverse().map(a=>`<tr ${adjRowAttrs(a.id)}>
+        <td class="mono">${escH(a.at)}</td><td class="num" style="color:${adjDaysColor(a.days)};font-weight:700">${lvAdjF(a.days)}</td>
         <td class="mono">${escH(a.period||'—')}</td><td>${escH(a.reason||'—')}</td></tr>`).join('')
         :'<tr><td colspan="4"><div class="empty">조정 내역이 없습니다.</div></td></tr>'}</tbody>
     </table></div>
@@ -1381,6 +1404,91 @@ function saveFinalDoc(id){
   }).catch(e=>toast(e.message||'보관에 실패했습니다.','err'));
 }
 
+/* ===================== 연차 조정 내역서 (보기 전용) =====================
+   조정 한 줄을 눌러 여는 상세 시트. 당사자에게 캡처해서 보내는 용도이므로
+   이 화면 하나만으로 "누가·누구의·며칠을·왜" 가 전부 읽혀야 한다.
+   ⚠️ 보기 전용이다 — 여기서 조정을 새로 만들거나 고치지 않는다(등록은 openAdjust). */
+function adjDaysTxt(n){
+  const d=Number(n)||0;
+  return (d>0.001?'+'+lvF1(d):(d<-0.001?'−'+lvF1(-d):'0'))+'일';
+}
+function adjDaysColor(n){
+  const d=Number(n)||0;
+  return d>0.001?'var(--ok)':(d<-0.001?'var(--warn)':'var(--sub)');
+}
+/* 조정 행은 관리자 화면(ST.admin)·직원 화면(viewMy) 양쪽에서 열린다 */
+function findAdj(id){
+  const k=String(id==null?'':id);
+  if(!k)return null;
+  const pools=[((ST.admin&&ST.admin.adjustments)||[]),(viewMy().adjustments||[]),((ST.my&&ST.my.adjustments)||[])];
+  for(let i=0;i<pools.length;i++){
+    const hit=pools[i].find(a=>String(a.id)===k);
+    if(hit)return hit;
+  }
+  return null;
+}
+/* 조정자 이름 — created_by 는 이메일이라 그대로 보여주면 사내 문서로 읽히지 않는다.
+     1) 관리자면 ST.admin.employees 에서 찾고
+     2) 일반 직원은 RLS 로 직원 목록을 못 받으므로 ST.me.approvers 에서 찾는다.
+        ga_adjust 가 ga_is_approver() 를 요구하므로 조정자는 언제나 센터장·대표 중 하나다.
+     3) 둘 다 없으면 이메일을 노출하지 말고 '관리자' */
+function adjByName(a){
+  const em=String((a&&(a.by||a.createdBy))||'').toLowerCase();
+  if(!em)return '관리자';
+  const e=((ST.admin&&ST.admin.employees)||[]).find(x=>String(x.email||'').toLowerCase()===em);
+  if(e)return (e.name+' '+(e.jobTitle||'')).trim();
+  const ap=apprOf(em);
+  if(ap)return (ap.name+' '+(ap.jobTitle||'')).trim();
+  return '관리자';
+}
+/* 대상자 — 이름 (직함) */
+function adjEmpLabel(empId){
+  const k=String(empId);
+  const e=((ST.admin&&ST.admin.employees)||[]).find(x=>String(x.id)===k);
+  if(e)return e.name+(e.jobTitle?' ('+e.jobTitle+')':'');
+  const cand=[ST.me,viewAs()];
+  for(let i=0;i<cand.length;i++){
+    const c=cand[i];
+    if(c&&String(c.id)===k)return (c.name||'—')+(c.jobTitle?' ('+c.jobTitle+')':'');
+  }
+  return empName(empId);
+}
+function adjSheetHtml(a){
+  const d=Number(a.days||0);
+  return `
+  <div class="doc-sheet" id="adjSheet">
+    <h1 class="doc-title"><span class="ttl">연차조정내역</span></h1>
+    <div class="doc-sub">${escH(coNameOfEmp(a.empId))} · GA</div>
+    <table class="doc-tbl">
+      <tr><th>대상자</th><td>${escH(adjEmpLabel(a.empId))}</td></tr>
+      <tr><th>조정 일수</th><td><span class="doc-big" style="color:${adjDaysColor(d)}">${escH(adjDaysTxt(d))}</span></td></tr>
+      <tr><th>사유</th><td>${escH(a.reason||'—')}</td></tr>
+      <tr><th>산정기간</th><td class="mono">${escH(a.period||'—')}</td></tr>
+      <tr><th>조정일</th><td class="mono">${escH(a.at||'—')}</td></tr>
+      <tr><th>조정자</th><td>${escH(adjByName(a))}</td></tr>
+    </table>
+    <div class="doc-foot">
+      <div class="d">${escH(String(a.at||'').replace(/-/g,'. '))} 조정</div>
+      <div class="co">${escH(coNameOfEmp(a.empId))} GA</div>
+    </div>
+  </div>`;
+}
+function openAdjDoc(id){
+  const a=findAdj(id);
+  if(!a){toast('조정 내역을 찾을 수 없습니다.','err');return;}
+  modal('연차 조정 내역','',adjSheetHtml(a),
+    [['닫기','btn-ghost',closeModal],['인쇄 · PDF 저장','btn-secondary',function(){window.print();}]]);
+}
+/* 인라인 onclick 의 '...' 안에 들어갈 id — JS 문자열로 한 번, HTML 속성으로 한 번 이스케이프 */
+function adjIdQ(id){return escH(String(id==null?'':id).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));}
+/* 조정 행 속성 — 클릭·Enter·Space 로 열린다 (관리자 화면·내 연차 공용) */
+function adjRowAttrs(id){
+  const q=adjIdQ(id);
+  return `class="clickable" tabindex="0" role="button" title="조정 내역서 보기"`
+    +` onclick="openAdjDoc('${q}')"`
+    +` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAdjDoc('${q}')}"`;
+}
+
 /* ===================== 연차 현황 (승인자) ===================== */
 function renderDash(){
   if(!ST.admin){loadAdmin().then(renderDash).catch(e=>pg('<div class="card card-pad">'+escH(e.message)+'</div>'));return;}
@@ -1401,12 +1509,12 @@ function renderDash(){
     </table></div>
   </div>
   <div class="card">
-    <div class="card-h"><h3>조정 연차 등록 내역</h3></div>
+    <div class="card-h"><h3>조정 연차 등록 내역</h3><span class="sub">행을 누르면 조정 내역서가 열립니다</span></div>
     <div class="table-wrap"><table>
       <thead><tr><th>등록일</th><th>대상</th><th class="num">일수</th><th>산정기간</th><th>사유</th><th>등록자</th></tr></thead>
-      <tbody>${(ST.admin.adjustments||[]).slice().reverse().map(a=>`<tr>
+      <tbody>${(ST.admin.adjustments||[]).slice().reverse().map(a=>`<tr ${adjRowAttrs(a.id)}>
         <td class="mono">${escH(a.at)}</td><td class="t-name">${escH(empName(a.empId))}</td>
-        <td class="num">${lvAdjF(a.days)}</td><td class="mono">${escH(a.period||'—')}</td>
+        <td class="num" style="color:${adjDaysColor(a.days)};font-weight:700">${lvAdjF(a.days)}</td><td class="mono">${escH(a.period||'—')}</td>
         <td>${escH(a.reason||'—')}</td><td class="hint">${escH(a.by||'')}</td></tr>`).join('')
         ||'<tr><td colspan="6"><div class="empty">등록된 조정 연차가 없습니다.</div></td></tr>'}</tbody>
     </table></div>
@@ -1790,6 +1898,64 @@ function logout(){
   sb.auth.signOut().then(function(){location.reload();}).catch(function(){location.reload();});
 }
 
+/* ===================== 로그인 시 조정 알림 (프런트 전용) =====================
+   서버에 '읽음' 상태가 없으므로 이미 본 조정 id 를 브라우저에 남긴다.
+   ⚠️ localStorage 는 사생활 보호 모드·사이트 데이터 차단에서 접근만 해도 throw 한다.
+      읽기·쓰기 모두 try/catch 로 감싸고, 읽지 못하면 '안 본 것'으로 본다 —
+      같은 알림이 한 번 더 뜨는 쪽이, 조정 사실을 아예 모르는 쪽보다 낫다. */
+const ADJ_SEEN_KEY='ga_seen_adj';
+function adjSeen(){
+  try{
+    const raw=window.localStorage.getItem(ADJ_SEEN_KEY);
+    const v=raw?JSON.parse(raw):[];
+    return Array.isArray(v)?v.map(String):[];
+  }catch(e){return [];}
+}
+function adjMarkSeen(ids){
+  try{
+    const set=adjSeen();
+    (ids||[]).forEach(function(id){const k=String(id);if(set.indexOf(k)<0)set.push(k);});
+    window.localStorage.setItem(ADJ_SEEN_KEY,JSON.stringify(set.slice(-300)));
+  }catch(e){/* 저장 실패 — 다음 로그인에 한 번 더 뜨는 것 외에 영향이 없다 */}
+}
+/* 아직 안 본 내 조정. 최근 것부터.
+     · 미리보기 중에는 띄우지 않는다 — 관리자가 남의 화면을 보는 중이다.
+     · viewer(isLeaveSubject=false)는 본인 연차 자체가 없다. */
+function newAdjs(){
+  if(isPreview())return [];
+  if(!isSubject())return [];
+  const seen=adjSeen();
+  return ((ST.my&&ST.my.adjustments)||[])
+    .filter(function(a){return a&&a.id!=null&&seen.indexOf(String(a.id))<0;})
+    .slice().sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''));});
+}
+function adjAlertHtml(list){
+  const one=list.length===1;
+  const head=one?('연차가 '+adjDaysTxt(list[0].days)+' 조정되었습니다')
+                :('연차 '+list.length+'건이 조정되었습니다');
+  return `<div class="adj-alert">
+    <div class="h">${escH(head)}</div>
+    <div class="s">${one?'아래를 누르면 조정 내역서를 볼 수 있습니다.'
+                       :'각 건을 누르면 조정 내역서를 볼 수 있습니다.'}</div>
+    ${list.map(a=>`<button type="button" class="adj-it" onclick="openAdjDoc('${adjIdQ(a.id)}')">
+      <span class="d" style="color:${adjDaysColor(a.days)}">${escH(adjDaysTxt(a.days))}</span>
+      <span class="r">${escH(a.reason||'사유 없음')}</span>
+      <span class="t mono">${escH(a.at||'')}</span>
+    </button>`).join('')}
+  </div>`;
+}
+function adjAlert(){
+  try{
+    const list=newAdjs();
+    if(!list.length)return false;
+    /* 띄우는 시점에 '봤다'고 기록한다. 목록에서 상세를 열면 이 모달이 교체되므로
+       '닫기'에만 걸어두면 기록을 놓친다. (중복 기록은 무해하다) */
+    adjMarkSeen(list.map(function(a){return a.id;}));
+    modal('연차 조정 안내','',adjAlertHtml(list),[['확인','btn-primary',closeModal]]);
+    return true;
+  }catch(e){return false;}   /* 알림 때문에 로그인 흐름이 끊겨서는 안 된다 */
+}
+
 /* ===================== 진입 ===================== */
 function enter(){
   return loadCfg().then(()=>loadMy()).then(()=>{
@@ -1798,8 +1964,8 @@ function enter(){
     document.getElementById('meNm').textContent=ST.me.name||'사용자';
     document.getElementById('meRl').textContent=ST.me.jobTitle||'GA';
     ST.preview=null;renderPvBar();   /* 로그인 직후는 언제나 내 화면 */
-    if(ST.me.canViewAll===true)return loadAdmin().then(()=>{buildNav();go('home');});
-    buildNav();go('home');
+    if(ST.me.canViewAll===true)return loadAdmin().then(()=>{buildNav();go('home');adjAlert();});
+    buildNav();go('home');adjAlert();
   });
 }
 function boot(){
